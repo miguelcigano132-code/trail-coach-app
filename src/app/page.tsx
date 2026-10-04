@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient';
+mport { supabase } from '@/lib/supabaseClient';
 import { Mountain, MapPin, Calendar, Activity, ShieldCheck, Coffee } from 'lucide-react';
 
 export const revalidate = 0; // Garantir dados sempre atualizados
