@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { parseGPXString, readCompressedOrTextFile } from '@/lib/gpxParser';
-import ElevationProfile, { GPXPoint } from '@/components/ElevationProfile';
 import { Mountain, Plus, CheckCircle2, User, Upload, FileText, Settings, Activity } from 'lucide-react';
 
 export default function AdminPage() {
@@ -17,7 +16,7 @@ export default function AdminPage() {
   const [distance, setDistance] = useState('');
   const [elevation, setElevation] = useState('');
   const [gpxFile, setGpxFile] = useState<File | null>(null);
-  const [gpxPoints, setGpxPoints] = useState<GPXPoint[]>([]);
+  const [gpxPointsCount, setGpxPointsCount] = useState<number>(0);
   const [loadingRace, setLoadingRace] = useState(false);
   const [raceSuccess, setRaceSuccess] = useState(false);
 
@@ -66,7 +65,7 @@ export default function AdminPage() {
       const text = await readCompressedOrTextFile(file);
       const { points, totalDistanceKm, elevationGainM } = parseGPXString(text);
 
-      setGpxPoints(points);
+      setGpxPointsCount(points.length);
       if (totalDistanceKm > 0) setDistance(totalDistanceKm.toString());
       if (elevationGainM > 0) setElevation(elevationGainM.toString());
     } catch (err) {
@@ -114,7 +113,7 @@ export default function AdminPage() {
       setDistance('');
       setElevation('');
       setGpxFile(null);
-      setGpxPoints([]);
+      setGpxPointsCount(0);
       if (newRace) {
         setRaces([newRace, ...races]);
         setSelectedRace(newRace.id);
@@ -124,29 +123,55 @@ export default function AdminPage() {
     }
   };
 
-  // Handler para Guardar Atribuição do Atleta
+  // Handler para Guardar Atribuição e Ficheiro do Atleta
   const handleSaveAthletePlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProfile) return;
+    if (!selectedProfile || !selectedRace) {
+      alert('Por favor seleciona um atleta e uma prova.');
+      return;
+    }
 
     setSavingProfile(true);
     setProfileSuccess(false);
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        carbs_target_g: parseInt(carbsPerHour),
-        water_target_ml: parseInt(waterPerHour),
-        target_pace: targetPace,
-        coach_notes: coachNotes,
-      })
-      .eq('id', selectedProfile);
+    try {
+      let extractedData: Record<string, any> = {};
 
-    setSavingProfile(false);
-    if (!error) {
+      // Se foi carregado ficheiro no modo TrainingPeaks
+      if (inputMode === 'TRAININGPEAKS' && tpFile) {
+        try {
+          const fileContent = await readCompressedOrTextFile(tpFile);
+          if (tpFile.name.endsWith('.json')) {
+            const parsed = JSON.parse(fileContent);
+            if (parsed.carbs) extractedData.carbs_target_g = parsed.carbs;
+            if (parsed.water) extractedData.water_target_ml = parsed.water;
+            if (parsed.pace) extractedData.target_pace = parsed.pace;
+          }
+        } catch (fErr) {
+          console.warn('Ficheiro processado sem extração JSON direta:', fErr);
+        }
+      }
+
+      // Atualizar o perfil no Supabase
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          race_id: selectedRace,
+          carbs_target_g: parseInt(carbsPerHour) || 75,
+          water_target_ml: parseInt(waterPerHour) || 600,
+          target_pace: targetPace || '7:30',
+          coach_notes: coachNotes,
+          ...extractedData,
+        })
+        .eq('id', selectedProfile);
+
+      if (error) throw error;
+
       setProfileSuccess(true);
-    } else {
-      alert(`Erro ao atualizar atleta: ${error.message}`);
+    } catch (err: any) {
+      alert(`Erro ao atualizar o plano do atleta: ${err.message || err}`);
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -169,6 +194,7 @@ export default function AdminPage() {
           {/* Seletor de Passo */}
           <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-bold">
             <button
+              type="button"
               onClick={() => setActiveStep('RACE')}
               className={`px-4 py-2 rounded-lg transition-all ${
                 activeStep === 'RACE' ? 'bg-emerald-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
@@ -177,6 +203,7 @@ export default function AdminPage() {
               1. Criar Prova & GPX
             </button>
             <button
+              type="button"
               onClick={() => setActiveStep('ATHLETE')}
               className={`px-4 py-2 rounded-lg transition-all ${
                 activeStep === 'ATHLETE' ? 'bg-emerald-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
@@ -217,13 +244,9 @@ export default function AdminPage() {
               </p>
             </div>
 
-            {/* VISUALIZADOR DE ALTIMETRIA EM TEMPO REAL */}
-            {gpxPoints.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase">
-                  <Activity className="w-4 h-4" /> Altimetria Extraída do Ficheiro GPX
-                </div>
-                <ElevationProfile points={gpxPoints} />
+            {gpxPointsCount > 0 && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs font-bold text-emerald-400 flex items-center gap-2">
+                <Activity className="w-4 h-4" /> Processados {gpxPointsCount} pontos de GPS do ficheiro com sucesso.
               </div>
             )}
 
