@@ -208,15 +208,29 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="flex gap-3 w-full md:w-auto">
-              <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
-                <p className="text-[10px] font-bold text-slate-500 uppercase">Carbs/Hora</p>
-                <p className="text-lg font-black text-emerald-400">75g</p>
-              </div>
-              <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
-                <p className="text-[10px] font-bold text-slate-500 uppercase">Hidratação</p>
-                <p className="text-lg font-black text-blue-400">600ml</p>
-              </div>
+            {/* COMO DEVE FICAR (Lê os dados da prova do Supabase): */}
+<div className="flex gap-3 w-full md:w-auto">
+  <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
+    <p className="text-[10px] font-bold text-slate-500 uppercase">Carbs/Hora</p>
+    <p className="text-lg font-black text-emerald-400">
+      {race?.target_carbs || '75g'}
+    </p>
+  </div>
+
+  <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
+    <p className="text-[10px] font-bold text-slate-500 uppercase">Hidratação</p>
+    <p className="text-lg font-black text-blue-400">
+      {race?.target_hydration || '600ml'}
+    </p>
+  </div>
+
+  {race?.target_pace && (
+    <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
+      <p className="text-[10px] font-bold text-slate-500 uppercase">Ritmo Alvo</p>
+      <p className="text-lg font-black text-amber-400">{race.target_pace}</p>
+    </div>
+  )}
+</div>
             </div>
           </div>
         </div>
