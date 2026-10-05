@@ -81,9 +81,9 @@ export default function AdminPage() {
     }
   }
 
-  // Função para calcular distância entre coordenadas (Fórmula Haversine)
+  // Função para calcular distância entre coordenadas (Fórmula Haversine em km)
   const calcDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // Raio da Terra em km
+    const R = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a =
@@ -96,7 +96,7 @@ export default function AdminPage() {
     return R * c;
   };
 
-  // Leitura e Parsing do Ficheiro GPX
+  // Leitura e Parsing do Ficheiro GPX (Extrai percurso e Waypoints reais)
   const handleGpxUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -118,6 +118,7 @@ export default function AdminPage() {
       let totalElevationGain = 0;
       const parsedPoints: GpxPoint[] = [];
 
+      // 1. Processar pontos do trajeto (trkpt)
       trkpts.forEach((pt, index) => {
         const lat = parseFloat(pt.getAttribute('lat') || '0');
         const lon = parseFloat(pt.getAttribute('lon') || '0');
@@ -143,7 +144,6 @@ export default function AdminPage() {
         });
       });
 
-      // Atualizar Estados Automaticamente
       const finalDistKm = Number(totalDist.toFixed(1));
       const finalElevationM = Math.round(totalElevationGain);
 
@@ -156,18 +156,39 @@ export default function AdminPage() {
         setNewRaceTitle(titleFromFilename);
       }
 
-      // Gerar Postos de Abastecimento Automáticos (a cada ~10km)
-      const generatedCheckpoints: AutoCheckpoint[] = [];
-      const interval = 10;
-      for (let km = interval; km < finalDistKm; km += interval) {
-        generatedCheckpoints.push({
-          name: `PAC ${generatedCheckpoints.length + 1} (${km}K)`,
-          km,
-          carbs_g: 60,
-          water_ml: 500
+      // 2. Extrair os Waypoints (<wpt>) georreferenciados do GPX
+      const wpts = Array.from(xmlDoc.querySelectorAll('wpt'));
+      const extractedCheckpoints: AutoCheckpoint[] = [];
+
+      wpts.forEach((wpt, index) => {
+        const wptLat = parseFloat(wpt.getAttribute('lat') || '0');
+        const wptLon = parseFloat(wpt.getAttribute('lon') || '0');
+        const nameNode = wpt.querySelector('name');
+        const wptName = nameNode?.textContent?.trim() || `PAC ${index + 1}`;
+
+        // Encontrar o ponto do trajeto (trkpt) mais próximo do waypoint para saber o KM exato
+        let minDistance = Infinity;
+        let matchedKm = 0;
+
+        parsedPoints.forEach((point) => {
+          const distToWpt = calcDistance(wptLat, wptLon, point.lat, point.lon);
+          if (distToWpt < minDistance) {
+            minDistance = distToWpt;
+            matchedKm = point.dist;
+          }
         });
-      }
-      setCheckpoints(generatedCheckpoints);
+
+        extractedCheckpoints.push({
+          name: wptName,
+          km: matchedKm,
+          carbs_g: 60,  // Valor predefinido para estimativa
+          water_ml: 500  // Valor predefinido para estimativa
+        });
+      });
+
+      // Ordenar os postos pelo quilómetro do trajeto
+      extractedCheckpoints.sort((a, b) => a.km - b.km);
+      setCheckpoints(extractedCheckpoints);
 
     } catch (err) {
       console.error('Erro ao processar ficheiro GPX:', err);
@@ -175,7 +196,6 @@ export default function AdminPage() {
     }
   };
 
-  // Upload de ficheiros TrainingPeaks / GZ
   const handleTpFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0];
     if (!uploadedFile) return;
@@ -199,13 +219,11 @@ export default function AdminPage() {
     }
   };
 
-  // Guardar Nova Prova
   const handleCreateRace = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // 1. Inserir a prova
       const { data: insertedRace, error: raceError } = await supabase
         .from('races')
         .insert([{ 
@@ -219,7 +237,6 @@ export default function AdminPage() {
 
       if (raceError) throw raceError;
 
-      // 2. Inserir os postos de abastecimento se existirem
       if (checkpoints.length > 0 && insertedRace) {
         const cpDataToInsert = checkpoints.map(cp => ({
           race_id: insertedRace.id,
@@ -233,7 +250,7 @@ export default function AdminPage() {
         if (cpError) console.error('Erro ao gravar abastecimentos:', cpError);
       }
 
-      showNotification('Prova e mapa GPX criados com sucesso!');
+      showNotification('Prova e PACs reais do GPX guardados com sucesso!');
       setNewRaceTitle('');
       setNewRaceDistance('');
       setNewRaceElevation('');
@@ -248,7 +265,6 @@ export default function AdminPage() {
     }
   };
 
-  // Guardar Plano do Atleta
   const handleSavePlan = async () => {
     setLoading(true);
 
@@ -334,8 +350,6 @@ export default function AdminPage() {
             </h2>
 
             <form onSubmit={handleCreateRace} className="space-y-6">
-              
-              {/* Upload GPX */}
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                   Carregar Ficheiro GPX da Prova
@@ -354,7 +368,6 @@ export default function AdminPage() {
                 </label>
               </div>
 
-              {/* Formulário de Detalhes da Prova */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
@@ -400,31 +413,41 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Preview da Altimetria */}
               {gpxData.length > 0 && (
                 <div className="space-y-3 bg-[#050914] p-4 rounded-2xl border border-slate-800">
                   <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                    <Activity className="w-4 h-4" /> Pré-visualização do Perfil Altimétrico
+                    <Activity className="w-4 h-4" /> Perfil Altimétrico
                   </div>
                   <ElevationProfile points={gpxData} />
                 </div>
               )}
 
-              {/* Preview dos Abastecimentos Automáticos */}
-              {checkpoints.length > 0 && (
+              {/* Lista dos PACs extraídos diretamente do GPX */}
+              {checkpoints.length > 0 ? (
                 <div className="space-y-3 bg-[#050914] p-4 rounded-2xl border border-slate-800">
                   <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                    <Flag className="w-4 h-4" /> Postos de Abastecimento Detetados ({checkpoints.length})
+                    <Flag className="w-4 h-4" /> Postos de Abastecimento do GPX ({checkpoints.length})
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {checkpoints.map((cp, idx) => (
                       <div key={idx} className="bg-[#0a1122] border border-slate-800 p-3 rounded-xl flex justify-between items-center text-xs">
-                        <span className="font-bold text-white">{cp.name}</span>
-                        <span className="text-slate-400">{cp.carbs_g}g Carbs / {cp.water_ml}ml Água</span>
+                        <div>
+                          <p className="font-bold text-white">{cp.name}</p>
+                          <p className="text-[10px] text-slate-400">Km {cp.km} km</p>
+                        </div>
+                        <span className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg font-mono">
+                          {cp.carbs_g}g / {cp.water_ml}ml
+                        </span>
                       </div>
                     ))}
                   </div>
                 </div>
+              ) : (
+                gpxFileName && (
+                  <p className="text-xs text-slate-500 italic text-center">
+                    Nenhum waypoint (&lt;wpt&gt;) de abastecimento detetado no ficheiro GPX.
+                  </p>
+                )
               )}
 
               <button
@@ -531,7 +554,7 @@ export default function AdminPage() {
               </label>
             )}
 
-            <div className="space-[#050914] space-y-2">
+            <div className="space-y-2">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Notas Táticas Personalizadas do Treinador
               </label>
