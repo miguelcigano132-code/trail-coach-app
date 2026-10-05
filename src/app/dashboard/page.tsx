@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { User, LogOut, ShieldAlert, Utensils, Mountain, CheckCircle, Share2, MapPin, Flag, Droplet, Flame } from 'lucide-react';
+import { User, LogOut, ShieldAlert, Utensils, Mountain, CheckCircle, Share2, MapPin, Flag, Droplet, Flame, Activity } from 'lucide-react';
 import ElevationProfile from '@/components/ElevationProfile';
 
 type TabType = 'D-3' | 'D-2' | 'D-1' | 'RACE_DAY';
@@ -89,9 +89,10 @@ export default function DashboardPage() {
       }
       setUser(user);
 
+      // Busca a prova incluindo explicitamente a coluna gpx_data
       const { data: raceData } = await supabase
         .from('races')
-        .select('*')
+        .select('id, title, location, distance_km, elevation_gain_m, race_date, gpx_data, created_at')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -154,6 +155,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-10 font-sans">
       <div className="max-w-4xl mx-auto space-y-8">
         
+        {/* Cabeçalho */}
         <div className="flex justify-between items-center border-b border-slate-800 pb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">
@@ -181,6 +183,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Cartão Principal da Prova */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-slate-800 p-6 md:p-8 shadow-2xl">
           <div className="absolute -right-10 -bottom-10 opacity-5 text-emerald-400 pointer-events-none">
             <Mountain size={280} />
@@ -217,6 +220,18 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* --- GRÁFICO DE ALTIMETRIA DA PROVA DO ATLETA --- */}
+        {race?.gpx_data && race.gpx_data.length > 0 && (
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
+              <Activity className="w-5 h-5 text-emerald-400" />
+              <h2 className="text-lg font-bold text-white uppercase tracking-wider">Perfil Altimétrico da Prova</h2>
+            </div>
+            <ElevationProfile points={race.gpx_data} />
+          </div>
+        )}
+
+        {/* Postos de Abastecimento */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
             <Flag className="w-5 h-5 text-emerald-400" />
@@ -253,6 +268,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Plano de Nutrição Pré-Prova */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div className="flex items-center gap-2">
@@ -312,6 +328,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Notas Táticas do Treinador */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
           <h2 className="text-base font-bold text-white mb-2 flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-amber-400" />
