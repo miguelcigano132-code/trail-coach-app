@@ -5,6 +5,47 @@ import { supabase } from '@/lib/supabaseClient';
 import { Plus, Trash2, Save, Upload, Mountain, Flag, ShieldAlert, Check } from 'lucide-react';
 import ElevationProfile from '@/components/ElevationProfile';
 
+// Função para calcular a distância em KM entre duas coordenadas GPS (Haversine)
+function getHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371; // Raio da Terra em km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Função para encontrar o KM aproximado no percurso para um Waypoint
+function calculateKmForWaypoint(wptLat: number, wptLon: number, routePoints: any[]) {
+  let accumulatedDistance = 0;
+  let minDistance = Infinity;
+  let closestKm = 0;
+
+  for (let i = 0; i < routePoints.length; i++) {
+    if (i > 0) {
+      accumulatedDistance += getHaversineDistance(
+        routePoints[i - 1].lat,
+        routePoints[i - 1].lon,
+        routePoints[i].lat,
+        routePoints[i].lon
+      );
+    }
+
+    const distToWpt = getHaversineDistance(wptLat, wptLon, routePoints[i].lat, routePoints[i].lon);
+    if (distToWpt < minDistance) {
+      minDistance = distToWpt;
+      closestKm = accumulatedDistance;
+    }
+  }
+
+  return closestKm;
+}
+
 export default function AdminPage() {
   // Dados da Prova
   const [title, setTitle] = useState('');
@@ -13,7 +54,7 @@ export default function AdminPage() {
   const [distance, setDistance] = useState('');
   const [elevation, setElevation] = useState('');
   
-  // Metas Táticas & Notas (Hidratação ajustada para múltiplos de 500ml)
+  // Metas Táticas & Notas
   const [targetCarbs, setTargetCarbs] = useState('75g');
   const [targetHydration, setTargetHydration] = useState('500ml (1 Flask/h)');
   const [targetPace, setTargetPace] = useState('6:00 min/km');
@@ -23,10 +64,10 @@ export default function AdminPage() {
   const [gpxFile, setGpxFile] = useState<File | null>(null);
   const [gpxPoints, setGpxPoints] = useState<any[]>([]);
 
-  // Postos de Abastecimento (PACs com padrão de 500ml por flask)
+  // Postos de Abastecimento (PACs)
   const [checkpoints, setCheckpoints] = useState<Array<{ name: string; km: string; carbs_g: number; water_ml: number }>>([
     { name: 'PAC 1 - Inicio Subida', km: '10', carbs_g: 40, water_ml: 500 },
-    { name: 'PAC 2 - Merujal (Dropbag)', km: '22', carbs_g: 75, water_ml: 1000 }, // 2 flasks
+    { name: 'PAC 2 - Merujal (Dropbag)', km: '22', carbs_g: 75, water_ml: 1000 },
   ]);
 
   const [loading, setLoading] = useState(false);
@@ -54,8 +95,9 @@ export default function AdminPage() {
     const text = await file.text();
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(text, 'text/xml');
-    const trkpts = Array.from(xmlDoc.querySelectorAll('trkpt'));
 
+    // 1. Processar os pontos do percurso (trkpt)
+    const trkpts = Array.from(xmlDoc.querySelectorAll('trkpt'));
     let totalDist = 0;
     const points: any[] = [];
 
@@ -66,25 +108,42 @@ export default function AdminPage() {
 
       if (idx > 0) {
         const prev = points[idx - 1];
-        const R = 6371;
-        const dLat = ((lat - prev.lat) * Math.PI) / 180;
-        const dLon = ((lon - prev.lon) * Math.PI) / 180;
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos((prev.lat * Math.PI) / 180) * Math.cos((lat * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        totalDist += R * c;
+        totalDist += getHaversineDistance(prev.lat, prev.lon, lat, lon);
       }
 
       points.push({ lat, lon, ele, distanceKm: totalDist });
     });
 
     setGpxPoints(points);
+
     if (points.length > 0) {
       setDistance(totalDist.toFixed(1));
       const maxEle = Math.max(...points.map((p) => p.ele));
       const minEle = Math.min(...points.map((p) => p.ele));
       setElevation(Math.round(maxEle - minEle).toString());
+    }
+
+    // 2. Extrair Waypoints/Postos de Abastecimento (<wpt>)
+    const wpts = Array.from(xmlDoc.querySelectorAll('wpt'));
+    if (wpts.length > 0 && points.length > 0) {
+      const extractedPACs = wpts.map((wpt, index) => {
+        const name = wpt.querySelector('name')?.textContent || `PAC ${index + 1}`;
+        const lat = parseFloat(wpt.getAttribute('lat') || '0');
+        const lon = parseFloat(wpt.getAttribute('lon') || '0');
+
+        const kmCalculated = calculateKmForWaypoint(lat, lon, points);
+
+        return {
+          name: name,
+          km: kmCalculated.toFixed(1),
+          carbs_g: 60,
+          water_ml: 500,
+        };
+      });
+
+      // Ordena os PACs pela ordem cronológica dos quilómetros
+      extractedPACs.sort((a, b) => parseFloat(a.km) - parseFloat(b.km));
+      setCheckpoints(extractedPACs);
     }
   };
 
