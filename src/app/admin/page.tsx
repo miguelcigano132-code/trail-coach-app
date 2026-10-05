@@ -94,6 +94,7 @@ export default function AdminPage() {
       }
     }
 
+    // Inserir a prova com os pontos do GPX na coluna gpx_data
     const { data: newRace, error } = await supabase.from('races').insert([
       {
         title,
@@ -102,6 +103,7 @@ export default function AdminPage() {
         distance_km: parseFloat(distance),
         elevation_gain_m: parseInt(elevation),
         gpx_url: gpxUrl,
+        gpx_data: gpxPoints, // <--- Guardar os pontos GPX aqui
         is_public: true,
       },
     ]).select().single();
