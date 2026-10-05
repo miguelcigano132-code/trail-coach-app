@@ -88,7 +88,7 @@ export default function AdminPage() {
       setTimeout(() => setSuccessMessage(false), 4000);
     } catch (err: any) {
       alert('Erro ao guardar: ' + err.message);
-    } fontinally {
+    } finally {
       setLoading(false);
     }
   };
