@@ -1,11 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { Plus, Trash2, Save, Upload, Mountain, Flag, ShieldAlert, Check } from 'lucide-react';
-import ElevationProfile from '@/components/ElevationProfile';
 import Link from 'next/link';
-import { Plus, Trash2, Save, Upload, Mountain, Flag, ShieldAlert, Check, LayoutDashboard } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import {
+  Plus,
+  Trash2,
+  Save,
+  Upload,
+  Mountain,
+  Flag,
+  ShieldAlert,
+  Check,
+  LayoutDashboard,
+} from 'lucide-react';
+import ElevationProfile from '@/components/ElevationProfile';
 
 // Função para calcular a distância em KM entre duas coordenadas GPS (Haversine)
 function getHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -55,7 +64,7 @@ export default function AdminPage() {
   const [raceDate, setRaceDate] = useState('');
   const [distance, setDistance] = useState('');
   const [elevation, setElevation] = useState('');
-  
+
   // Metas Táticas & Notas
   const [targetCarbs, setTargetCarbs] = useState('75g');
   const [targetHydration, setTargetHydration] = useState('500ml (1 Flask/h)');
@@ -67,7 +76,9 @@ export default function AdminPage() {
   const [gpxPoints, setGpxPoints] = useState<any[]>([]);
 
   // Postos de Abastecimento (PACs)
-  const [checkpoints, setCheckpoints] = useState<Array<{ name: string; km: string; carbs_g: number; water_ml: number }>>([
+  const [checkpoints, setCheckpoints] = useState<
+    Array<{ name: string; km: string; carbs_g: number; water_ml: number }>
+  >([
     { name: 'PAC 1 - Inicio Subida', km: '10', carbs_g: 40, water_ml: 500 },
     { name: 'PAC 2 - Merujal (Dropbag)', km: '22', carbs_g: 75, water_ml: 1000 },
   ]);
@@ -76,7 +87,10 @@ export default function AdminPage() {
   const [success, setSuccess] = useState(false);
 
   const handleAddCheckpoint = () => {
-    setCheckpoints([...checkpoints, { name: `PAC ${checkpoints.length + 1}`, km: '', carbs_g: 60, water_ml: 500 }]);
+    setCheckpoints([
+      ...checkpoints,
+      { name: `PAC ${checkpoints.length + 1}`, km: '', carbs_g: 60, water_ml: 500 },
+    ]);
   };
 
   const handleRemoveCheckpoint = (index: number) => {
@@ -216,16 +230,28 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-10 font-sans">
       <div className="max-w-4xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-2xl font-black text-white flex items-center gap-2">
-            <Mountain className="w-7 h-7 text-emerald-400"/> PAINEL DO TREINADOR
-          </h1>
-          <p className="text-xs text-slate-400 mt-1">Gestão de Provas, Metas Táticas e Postos de Abastecimento</p>
+        {/* Cabeçalho com o Botão de Atalho para o Atleta */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-6">
+          <div>
+            <h1 className="text-2xl font-black text-white flex items-center gap-2">
+              <Mountain className="w-7 h-7 text-emerald-400" /> PAINEL DO TREINADOR
+            </h1>
+            <p className="text-xs text-slate-400 mt-1">
+              Gestão de Provas, Metas Táticas e Postos de Abastecimento
+            </p>
+          </div>
+
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-emerald-400 hover:text-emerald-300 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md"
+          >
+            <LayoutDashboard className="w-4 h-4" /> Ver Vista do Atleta
+          </Link>
         </div>
 
         {success && (
           <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-4 rounded-2xl flex items-center gap-2 text-sm font-bold">
-            <Check className="w-5 h-5"/> Prova e Plano Tático salvos com sucesso!
+            <Check className="w-5 h-5" /> Prova e Plano Tático salvos com sucesso!
           </div>
         )}
 
@@ -233,7 +259,7 @@ export default function AdminPage() {
           {/* Ficheiro GPX */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
             <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-              <Upload className="w-4 h-4"/> 1. Carregar Percurso GPX / GZ
+              <Upload className="w-4 h-4" /> 1. Carregar Percurso GPX / GZ
             </h2>
             <input
               type="file"
@@ -246,7 +272,9 @@ export default function AdminPage() {
 
           {/* Detalhes da Prova */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider">2. Dados da Prova</h2>
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+              2. Dados da Prova
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div>
                 <label className="text-slate-400 font-bold block mb-1">Nome da Prova</label>
@@ -305,7 +333,9 @@ export default function AdminPage() {
 
           {/* Metas Táticas */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider">3. Metas Táticas do Atleta</h2>
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+              3. Metas Táticas do Atleta
+            </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
               <div>
                 <label className="text-slate-400 font-bold block mb-1">Carbs / Hora</label>
@@ -318,7 +348,9 @@ export default function AdminPage() {
                 />
               </div>
               <div>
-                <label className="text-slate-400 font-bold block mb-1">Hidratação / Hora (Flasks de 500ml)</label>
+                <label className="text-slate-400 font-bold block mb-1">
+                  Hidratação / Hora (Flasks de 500ml)
+                </label>
                 <input
                   type="text"
                   value={targetHydration}
@@ -344,22 +376,27 @@ export default function AdminPage() {
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <Flag className="w-4 h-4 text-emerald-400"/> 4. Postos de Abastecimento (PACs)
+                <Flag className="w-4 h-4 text-emerald-400" /> 4. Postos de Abastecimento (PACs)
               </h2>
               <button
                 type="button"
                 onClick={handleAddCheckpoint}
                 className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-emerald-500/20"
               >
-                <Plus className="w-3.5 h-3.5"/> Adicionar PAC
+                <Plus className="w-3.5 h-3.5" /> Adicionar PAC
               </button>
             </div>
 
             <div className="space-y-3">
               {checkpoints.map((cp, idx) => (
-                <div key={idx} className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-5 gap-3 items-center text-xs">
+                <div
+                  key={idx}
+                  className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-5 gap-3 items-center text-xs"
+                >
                   <div className="sm:col-span-2">
-                    <label className="text-slate-500 text-[10px] uppercase font-bold block">Nome do Posto</label>
+                    <label className="text-slate-500 text-[10px] uppercase font-bold block">
+                      Nome do Posto
+                    </label>
                     <input
                       type="text"
                       value={cp.name}
@@ -368,7 +405,9 @@ export default function AdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-slate-500 text-[10px] uppercase font-bold block">KM</label>
+                    <label className="text-slate-500 text-[10px] uppercase font-bold block">
+                      KM
+                    </label>
                     <input
                       type="number"
                       step="0.1"
@@ -378,22 +417,30 @@ export default function AdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-slate-500 text-[10px] uppercase font-bold block">Carbs (g)</label>
+                    <label className="text-slate-500 text-[10px] uppercase font-bold block">
+                      Carbs (g)
+                    </label>
                     <input
                       type="number"
                       value={cp.carbs_g}
-                      onChange={(e) => handleCheckpointChange(idx, 'carbs_g', parseInt(e.target.value) || 0)}
+                      onChange={(e) =>
+                        handleCheckpointChange(idx, 'carbs_g', parseInt(e.target.value) || 0)
+                      }
                       className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white mt-1"
                     />
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex-1">
-                      <label className="text-slate-500 text-[10px] uppercase font-bold block">Líquidos (ml / Flasks)</label>
+                      <label className="text-slate-500 text-[10px] uppercase font-bold block">
+                        Líquidos (ml / Flasks)
+                      </label>
                       <input
                         type="number"
                         step="250"
                         value={cp.water_ml}
-                        onChange={(e) => handleCheckpointChange(idx, 'water_ml', parseInt(e.target.value) || 0)}
+                        onChange={(e) =>
+                          handleCheckpointChange(idx, 'water_ml', parseInt(e.target.value) || 0)
+                        }
                         placeholder="500ml = 1 Flask"
                         className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white mt-1"
                       />
@@ -403,7 +450,7 @@ export default function AdminPage() {
                       onClick={() => handleRemoveCheckpoint(idx)}
                       className="text-rose-400 hover:text-rose-300 p-2 mt-4"
                     >
-                      <Trash2 className="w-4 h-4"/>
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -414,7 +461,7 @@ export default function AdminPage() {
           {/* Notas Táticas do Treinador */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
             <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-amber-400"/> 5. Notas Táticas para o Atleta
+              <ShieldAlert className="w-4 h-4 text-amber-400" /> 5. Notas Táticas para o Atleta
             </h2>
             <textarea
               rows={3}
@@ -431,7 +478,8 @@ export default function AdminPage() {
             disabled={loading}
             className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2"
           >
-            <Save className="w-5 h-5"/> {loading ? 'A guardar prova...' : 'Guardar Prova e Plano Tático'}
+            <Save className="w-5 h-5" />{' '}
+            {loading ? 'A guardar prova...' : 'Guardar Prova e Plano Tático'}
           </button>
         </form>
       </div>
