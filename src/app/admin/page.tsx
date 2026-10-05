@@ -1,491 +1,378 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { parseGPXString, readCompressedOrTextFile } from '@/lib/gpxParser';
-import ElevationProfile, { GPXPoint } from '@/components/ElevationProfile';
-import { Mountain, Plus, CheckCircle2, User, Upload, FileText, Settings, Activity } from 'lucide-react';
+import { Plus, Trash2, Save, Upload, Mountain, Flag, ShieldAlert, Check } from 'lucide-react';
+import ElevationProfile from '@/components/ElevationProfile';
 
 export default function AdminPage() {
-  // Estado de Navegação/Aba do Admin
-  const [activeStep, setActiveStep] = useState<'RACE' | 'ATHLETE'>('RACE');
-
-  // Estados para Criar Prova + GPX
+  // Dados da Prova
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [raceDate, setRaceDate] = useState('');
   const [distance, setDistance] = useState('');
   const [elevation, setElevation] = useState('');
-  const [gpxFile, setGpxFile] = useState<File | null>(null);
-  const [gpxPoints, setGpxPoints] = useState<GPXPoint[]>([]);
-  const [loadingRace, setLoadingRace] = useState(false);
-  const [raceSuccess, setRaceSuccess] = useState(false);
-
-  // Estados para Atribuir a Atleta
-  const [races, setRaces] = useState<any[]>([]);
-  const [selectedRace, setSelectedRace] = useState<string>('');
-  const [profiles, setProfiles] = useState<any[]>([]);
-  const [selectedProfile, setSelectedProfile] = useState<string>('');
   
-  // MODO DE DADOS DO ATLETA (TrainingPeaks vs Manual)
-  const [inputMode, setInputMode] = useState<'MANUAL' | 'TRAININGPEAKS'>('MANUAL');
-  const [carbsPerHour, setCarbsPerHour] = useState('75');
-  const [waterPerHour, setWaterPerHour] = useState('600');
-  const [targetPace, setTargetPace] = useState('7:30');
-  const [tpFile, setTpFile] = useState<File | null>(null);
+  // Metas Táticas & Notas (Hidratação ajustada para múltiplos de 500ml)
+  const [targetCarbs, setTargetCarbs] = useState('75g');
+  const [targetHydration, setTargetHydration] = useState('500ml (1 Flask/h)');
+  const [targetPace, setTargetPace] = useState('6:00 min/km');
   const [coachNotes, setCoachNotes] = useState('');
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [profileSuccess, setProfileSuccess] = useState(false);
 
-  useEffect(() => {
-    async function loadData() {
-      // Carregar Atletas
-      const { data: profData } = await supabase.from('profiles').select('*');
-      if (profData && profData.length > 0) {
-        setProfiles(profData);
-        setSelectedProfile(profData[0].id);
-      }
+  // GPX & Ficheiros
+  const [gpxFile, setGpxFile] = useState<File | null>(null);
+  const [gpxPoints, setGpxPoints] = useState<any[]>([]);
 
-      // Carregar Provas Criadas
-      const { data: raceData } = await supabase.from('races').select('*').order('created_at', { ascending: false });
-      if (raceData && raceData.length > 0) {
-        setRaces(raceData);
-        setSelectedRace(raceData[0].id);
-      }
-    }
-    loadData();
-  }, []);
+  // Postos de Abastecimento (PACs com padrão de 500ml por flask)
+  const [checkpoints, setCheckpoints] = useState<Array<{ name: string; km: string; carbs_g: number; water_ml: number }>>([
+    { name: 'PAC 1 - Inicio Subida', km: '10', carbs_g: 40, water_ml: 500 },
+    { name: 'PAC 2 - Merujal (Dropbag)', km: '22', carbs_g: 75, water_ml: 1000 }, // 2 flasks
+  ]);
 
-  // Processar ficheiro GPX/GZ localmente
-  const handleGpxFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const handleAddCheckpoint = () => {
+    setCheckpoints([...checkpoints, { name: `PAC ${checkpoints.length + 1}`, km: '', carbs_g: 60, water_ml: 500 }]);
+  };
+
+  const handleRemoveCheckpoint = (index: number) => {
+    setCheckpoints(checkpoints.filter((_, i) => i !== index));
+  };
+
+  const handleCheckpointChange = (index: number, field: string, value: any) => {
+    const updated = [...checkpoints];
+    updated[index] = { ...updated[index], [field]: value };
+    setCheckpoints(updated);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setGpxFile(file);
-    try {
-      const text = await readCompressedOrTextFile(file);
-      const { points, totalDistanceKm, elevationGainM } = parseGPXString(text);
 
-      setGpxPoints(points);
-      if (totalDistanceKm > 0) setDistance(totalDistanceKm.toString());
-      if (elevationGainM > 0) setElevation(elevationGainM.toString());
-    } catch (err) {
-      alert('Erro ao processar o ficheiro GPX/.GZ selecionado.');
+    const text = await file.text();
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(text, 'text/xml');
+    const trkpts = Array.from(xmlDoc.querySelectorAll('trkpt'));
+
+    let totalDist = 0;
+    const points: any[] = [];
+
+    trkpts.forEach((pt, idx) => {
+      const lat = parseFloat(pt.getAttribute('lat') || '0');
+      const lon = parseFloat(pt.getAttribute('lon') || '0');
+      const ele = parseFloat(pt.querySelector('ele')?.textContent || '0');
+
+      if (idx > 0) {
+        const prev = points[idx - 1];
+        const R = 6371;
+        const dLat = ((lat - prev.lat) * Math.PI) / 180;
+        const dLon = ((lon - prev.lon) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((prev.lat * Math.PI) / 180) * Math.cos((lat * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        totalDist += R * c;
+      }
+
+      points.push({ lat, lon, ele, distanceKm: totalDist });
+    });
+
+    setGpxPoints(points);
+    if (points.length > 0) {
+      setDistance(totalDist.toFixed(1));
+      const maxEle = Math.max(...points.map((p) => p.ele));
+      const minEle = Math.min(...points.map((p) => p.ele));
+      setElevation(Math.round(maxEle - minEle).toString());
     }
   };
 
-  // Handler para Criar Prova
-  const handleCreateRace = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoadingRace(true);
-    setRaceSuccess(false);
+    setLoading(true);
+    setSuccess(false);
 
-    let gpxUrl = null;
-
-    if (gpxFile) {
-      const fileExt = gpxFile.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const { data: storageData, error: storageErr } = await supabase.storage
-        .from('avatars')
-        .upload(`gpx/${fileName}`, gpxFile);
-
-      if (!storageErr && storageData) {
-        gpxUrl = storageData.path;
+    try {
+      let gpxUrl = null;
+      if (gpxFile) {
+        const fileExt = gpxFile.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const { data: storageData } = await supabase.storage
+          .from('avatars')
+          .upload(`gpx/${fileName}`, gpxFile);
+        if (storageData) gpxUrl = storageData.path;
       }
-    }
 
-    // Inserir a prova com os pontos do GPX na coluna gpx_data
-    const { data: newRace, error } = await supabase.from('races').insert([
-      {
-        title,
-        location,
-        race_date: raceDate,
-        distance_km: parseFloat(distance),
-        elevation_gain_m: parseInt(elevation),
-        gpx_url: gpxUrl,
-        gpx_data: gpxPoints, // <--- Guardar os pontos GPX aqui
-        is_public: true,
-      },
-    ]).select().single();
+      const { data: raceData, error: raceError } = await supabase
+        .from('races')
+        .insert([
+          {
+            title,
+            location,
+            race_date: raceDate,
+            distance_km: parseFloat(distance),
+            elevation_gain_m: parseInt(elevation),
+            gpx_url: gpxUrl,
+            gpx_data: gpxPoints,
+            target_carbs: targetCarbs,
+            target_hydration: targetHydration,
+            target_pace: targetPace,
+            coach_notes: coachNotes,
+            is_public: true,
+          },
+        ])
+        .select()
+        .single();
 
-    setLoadingRace(false);
-    if (!error) {
-      setRaceSuccess(true);
+      if (raceError) throw raceError;
+
+      if (raceData && checkpoints.length > 0) {
+        const formattedCheckpoints = checkpoints.map((cp) => ({
+          race_id: raceData.id,
+          name: cp.name,
+          km: parseFloat(cp.km) || 0,
+          carbs_g: cp.carbs_g,
+          water_ml: cp.water_ml,
+        }));
+
+        const { error: cpError } = await supabase.from('checkpoints').insert(formattedCheckpoints);
+        if (cpError) console.error('Erro ao guardar PACs:', cpError.message);
+      }
+
+      setSuccess(true);
       setTitle('');
       setLocation('');
-      setDistance('');
-      setElevation('');
       setGpxFile(null);
       setGpxPoints([]);
-      if (newRace) {
-        setRaces([newRace, ...races]);
-        setSelectedRace(newRace.id);
-      }
-    } else {
-      alert(`Erro ao criar prova: ${error.message}`);
-    }
-  };
-
-  // Handler para Guardar Atribuição do Atleta
-  const handleSaveAthletePlan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProfile) {
-      alert('Por favor seleciona um atleta.');
-      return;
-    }
-
-    setSavingProfile(true);
-    setProfileSuccess(false);
-
-    try {
-      let extractedData: Record<string, any> = {};
-
-      if (inputMode === 'TRAININGPEAKS' && tpFile) {
-        try {
-          const fileContent = await readCompressedOrTextFile(tpFile);
-          if (tpFile.name.endsWith('.json')) {
-            const parsed = JSON.parse(fileContent);
-            if (parsed.carbs) extractedData.carbs_target_g = parsed.carbs;
-            if (parsed.water) extractedData.water_target_ml = parsed.water;
-            if (parsed.pace) extractedData.target_pace = parsed.pace;
-          }
-        } catch (fErr) {
-          console.warn('Ficheiro processado sem extração JSON direta:', fErr);
-        }
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          carbs_target_g: parseInt(carbsPerHour) || 75,
-          water_target_ml: parseInt(waterPerHour) || 600,
-          target_pace: targetPace || '7:30',
-          coach_notes: coachNotes,
-          ...extractedData,
-        })
-        .eq('id', selectedProfile);
-
-      if (error) throw error;
-
-      setProfileSuccess(true);
     } catch (err: any) {
-      alert(`Erro ao atualizar o plano do atleta: ${err.message || err}`);
+      alert(`Erro ao criar prova: ${err.message}`);
     } finally {
-      setSavingProfile(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12 space-y-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-10 font-sans">
       <div className="max-w-4xl mx-auto space-y-8">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400">
-              <Mountain className="w-8 h-8" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black uppercase text-white">Painel do Treinador</h1>
-              <p className="text-xs text-slate-400">Gestão de Provas (GPX) e Planos Individuais de Atletas</p>
-            </div>
-          </div>
-
-          {/* Seletor de Passo */}
-          <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => setActiveStep('RACE')}
-              className={`px-4 py-2 rounded-lg transition-all ${
-                activeStep === 'RACE' ? 'bg-emerald-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              1. Criar Prova & GPX
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveStep('ATHLETE')}
-              className={`px-4 py-2 rounded-lg transition-all ${
-                activeStep === 'ATHLETE' ? 'bg-emerald-500 text-slate-950 font-black' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              2. Personalizar Atleta
-            </button>
-          </div>
+        <div>
+          <h1 className="text-2xl font-black text-white flex items-center gap-2">
+            <Mountain className="w-7 h-7 text-emerald-400"/> PAINEL DO TREINADOR
+          </h1>
+          <p className="text-xs text-slate-400 mt-1">Gestão de Provas, Metas Táticas e Postos de Abastecimento</p>
         </div>
 
-        {/* --- PASSO 1: CRIAR PROVA & UPLOAD DE GPX/GZ --- */}
-        {activeStep === 'RACE' && (
-          <form onSubmit={handleCreateRace} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Plus className="w-5 h-5 text-emerald-400" /> Nova Prova de Trail + Percurso GPX
+        {success && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-4 rounded-2xl flex items-center gap-2 text-sm font-bold">
+            <Check className="w-5 h-5"/> Prova e Plano Tático salvos com sucesso!
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Ficheiro GPX */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+            <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+              <Upload className="w-4 h-4"/> 1. Carregar Percurso GPX / GZ
             </h2>
+            <input
+              type="file"
+              accept=".gpx,.gz"
+              onChange={handleFileChange}
+              className="block w-full text-xs text-slate-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-emerald-500 file:text-slate-950 hover:file:bg-emerald-400 cursor-pointer"
+            />
+            {gpxPoints.length > 0 && <ElevationProfile points={gpxPoints} />}
+          </div>
 
-            {raceSuccess && (
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm rounded-xl flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5" /> Prova e GPX registados com sucesso! Podes agora personalizar os atletas no Passo 2.
-              </div>
-            )}
-
-            {/* UPLOAD DO GPX / GZ */}
-            <div className="border-2 border-dashed border-slate-800 bg-slate-950/50 rounded-2xl p-6 text-center hover:border-emerald-500/50 transition-colors">
-              <Upload className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
-              <label className="block text-xs font-bold text-slate-300 uppercase cursor-pointer">
-                Carregar Ficheiro GPX / GZ da Prova
-                <input
-                  type="file"
-                  accept=".gpx,.gz,.gpx.gz"
-                  onChange={handleGpxFileChange}
-                  className="hidden"
-                />
-              </label>
-              <p className="text-[11px] text-slate-500 mt-1">
-                {gpxFile ? `Ficheiro Selecionado: ${gpxFile.name}` : 'Suporta ficheiros .gpx e .gz (descompressão automática)'}
-              </p>
-            </div>
-
-            {/* GRÁFICO DE ALTIMETRIA EM TEMPO REAL */}
-            {gpxPoints.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase">
-                  <Activity className="w-4 h-4" /> Altimetria Extraída do Ficheiro GPX
-                </div>
-                <ElevationProfile points={gpxPoints} />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Nome da Prova</label>
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ex: Trail São João"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Detalhes da Prova */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider">2. Dados da Prova</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Localização</label>
+                <label className="text-slate-400 font-bold block mb-1">Nome da Prova</label>
                 <input
                   type="text"
                   required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Ex: Trail Serra da Freita"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 font-bold block mb-1">Localização</label>
+                <input
+                  type="text"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Ex: Vila Nova de Gaia, Portugal"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                  placeholder="Ex: Arouca, Portugal"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
-
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Data da Prova</label>
-                <input
-                  type="date"
-                  required
-                  value={raceDate}
-                  onChange={(e) => setRaceDate(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Distância (KM)</label>
+                <label className="text-slate-400 font-bold block mb-1">Distância (KM)</label>
                 <input
                   type="number"
                   step="0.1"
                   required
                   value={distance}
                   onChange={(e) => setDistance(e.target.value)}
-                  placeholder="32"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
-
               <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Desnível Positivo (D+ m)</label>
+                <label className="text-slate-400 font-bold block mb-1">Desnível (D+ M)</label>
                 <input
                   type="number"
                   required
                   value={elevation}
                   onChange={(e) => setElevation(e.target.value)}
-                  placeholder="2100"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 font-bold block mb-1">Data da Prova</label>
+                <input
+                  type="date"
+                  required
+                  value={raceDate}
+                  onChange={(e) => setRaceDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={loadingRace}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl transition-all disabled:opacity-50"
-            >
-              {loadingRace ? 'A guardar Prova e GPX...' : 'Guardar Prova & Avançar'}
-            </button>
-          </form>
-        )}
+          {/* Metas Táticas */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider">3. Metas Táticas do Atleta</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div>
+                <label className="text-slate-400 font-bold block mb-1">Carbs / Hora</label>
+                <input
+                  type="text"
+                  value={targetCarbs}
+                  onChange={(e) => setTargetCarbs(e.target.value)}
+                  placeholder="Ex: 75g"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 font-bold block mb-1">Hidratação / Hora (Flasks de 500ml)</label>
+                <input
+                  type="text"
+                  value={targetHydration}
+                  onChange={(e) => setTargetHydration(e.target.value)}
+                  placeholder="Ex: 500ml (1 Flask)"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 font-bold block mb-1">Ritmo Alvo</label>
+                <input
+                  type="text"
+                  value={targetPace}
+                  onChange={(e) => setTargetPace(e.target.value)}
+                  placeholder="Ex: 6:30 min/km"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+          </div>
 
-        {/* --- PASSO 2: ATRIBUIR PROVA E PERSONALIZAR ATLETA --- */}
-        {activeStep === 'ATHLETE' && (
-          <form onSubmit={handleSaveAthletePlan} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <User className="w-5 h-5 text-emerald-400" /> Selecionar Prova & Personalizar Métricas do Atleta
+          {/* Postos de Abastecimento (PACs) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <Flag className="w-4 h-4 text-emerald-400"/> 4. Postos de Abastecimento (PACs)
               </h2>
-              {profileSuccess && (
-                <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                  <CheckCircle2 className="w-4 h-4" /> Plano guardado com sucesso!
-                </span>
-              )}
+              <button
+                type="button"
+                onClick={handleAddCheckpoint}
+                className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-emerald-500/20"
+              >
+                <Plus className="w-3.5 h-3.5"/> Adicionar PAC
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">1. Selecionar Prova Atribuição</label>
-                <select
-                  value={selectedRace}
-                  onChange={(e) => setSelectedRace(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                >
-                  {races.length > 0 ? (
-                    races.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.title} ({r.distance_km}K)
-                      </option>
-                    ))
-                  ) : (
-                    <option value="">Cria uma prova no Passo 1 primeiro</option>
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">2. Selecionar Atleta</label>
-                <select
-                  value={selectedProfile}
-                  onChange={(e) => setSelectedProfile(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                >
-                  {profiles.length > 0 ? (
-                    profiles.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.full_name || p.email || p.id}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="">Nenhum atleta encontrado na base de dados</option>
-                  )}
-                </select>
-              </div>
-            </div>
-
-            {/* SELETOR DE MODO: TRAININGPEAKS vs MANUAL */}
-            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
-              <label className="block text-xs font-bold text-slate-400 uppercase">Modo de Configuração de Métricas</label>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setInputMode('MANUAL')}
-                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all ${
-                    inputMode === 'MANUAL'
-                      ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
-                      : 'border-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Settings className="w-4 h-4" /> Entrada Manual de Valores
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInputMode('TRAININGPEAKS')}
-                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border transition-all ${
-                    inputMode === 'TRAININGPEAKS'
-                      ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400'
-                      : 'border-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <FileText className="w-4 h-4" /> Importar Ficheiro TrainingPeaks
-                </button>
-              </div>
-            </div>
-
-            {/* CAMPOS DEPENDENDO DO MODO SELECIONADO */}
-            {inputMode === 'MANUAL' ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Meta Carbs (g/hora)</label>
-                  <input
-                    type="number"
-                    value={carbsPerHour}
-                    onChange={(e) => setCarbsPerHour(e.target.value)}
-                    placeholder="75"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                  />
+            <div className="space-y-3">
+              {checkpoints.map((cp, idx) => (
+                <div key={idx} className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-5 gap-3 items-center text-xs">
+                  <div className="sm:col-span-2">
+                    <label className="text-slate-500 text-[10px] uppercase font-bold block">Nome do Posto</label>
+                    <input
+                      type="text"
+                      value={cp.name}
+                      onChange={(e) => handleCheckpointChange(idx, 'name', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-500 text-[10px] uppercase font-bold block">KM</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={cp.km}
+                      onChange={(e) => handleCheckpointChange(idx, 'km', e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-500 text-[10px] uppercase font-bold block">Carbs (g)</label>
+                    <input
+                      type="number"
+                      value={cp.carbs_g}
+                      onChange={(e) => handleCheckpointChange(idx, 'carbs_g', parseInt(e.target.value) || 0)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white mt-1"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <label className="text-slate-500 text-[10px] uppercase font-bold block">Líquidos (ml / Flasks)</label>
+                      <input
+                        type="number"
+                        step="250"
+                        value={cp.water_ml}
+                        onChange={(e) => handleCheckpointChange(idx, 'water_ml', parseInt(e.target.value) || 0)}
+                        placeholder="500ml = 1 Flask"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white mt-1"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCheckpoint(idx)}
+                      className="text-rose-400 hover:text-rose-300 p-2 mt-4"
+                    >
+                      <Trash2 className="w-4 h-4"/>
+                    </button>
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Hidratação (ml/hora)</label>
-                  <input
-                    type="number"
-                    value={waterPerHour}
-                    onChange={(e) => setWaterPerHour(e.target.value)}
-                    placeholder="600"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Ritmo Alvo (min/km)</label>
-                  <input
-                    type="text"
-                    value={targetPace}
-                    onChange={(e) => setTargetPace(e.target.value)}
-                    placeholder="7:30"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="border-2 border-dashed border-emerald-500/30 bg-emerald-500/5 rounded-2xl p-6 text-center space-y-2">
-                <FileText className="w-8 h-8 text-emerald-400 mx-auto" />
-                <label className="block text-xs font-bold text-emerald-400 uppercase cursor-pointer">
-                  CARREGAR FICHEIRO DO TRAININGPEAKS (.CSV / .JSON / .FIT / .GZ)
-                  <input
-                    type="file"
-                    accept=".csv,.json,.fit,.gz,.zip"
-                    onChange={(e) => setTpFile(e.target.files?.[0] || null)}
-                    className="hidden"
-                  />
-                </label>
-                <p className="text-[11px] text-slate-400">
-                  {tpFile ? `Ficheiro Carregado: ${tpFile.name}` : 'As métricas de VMA, Limiar e Carga serão extraídas automaticamente'}
-                </p>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Notas Táticas Personalizadas do Treinador</label>
-              <textarea
-                rows={3}
-                value={coachNotes}
-                onChange={(e) => setCoachNotes(e.target.value)}
-                placeholder="Instruções específicas sobre subidas, zonas de ritmo e nutrição para este atleta nesta prova..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-              />
+              ))}
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={savingProfile || !selectedProfile}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 rounded-xl transition-all disabled:opacity-50"
-            >
-              {savingProfile ? 'A Guardar Plano...' : 'Guardar Plano Individual do Atleta'}
-            </button>
-          </form>
-        )}
+          {/* Notas Táticas do Treinador */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-amber-400"/> 5. Notas Táticas para o Atleta
+            </h2>
+            <textarea
+              rows={3}
+              value={coachNotes}
+              onChange={(e) => setCoachNotes(e.target.value)}
+              placeholder="Ex: Levar 2 flasks de 500ml cheios na partida (1 com água, 1 com eletrólitos). A primeira subida requer atenção..."
+              className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs text-white focus:outline-none focus:border-emerald-500"
+            />
+          </div>
 
+          {/* Submeter */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2"
+          >
+            <Save className="w-5 h-5"/> {loading ? 'A guardar prova...' : 'Guardar Prova e Plano Tático'}
+          </button>
+        </form>
       </div>
     </div>
   );
