@@ -7,7 +7,20 @@ import { User, LogOut, ShieldAlert, Utensils, Mountain, CheckCircle, Share2, Map
 
 type TabType = 'D-3' | 'D-2' | 'D-1' | 'RACE_DAY';
 
-const NUTRITION_SCHEDULE = {
+interface Meal {
+  time: string;
+  desc: string;
+}
+
+interface NutritionPlan {
+  title: string;
+  targetCarbs: string;
+  water: string;
+  focus: string;
+  meals: Meal[];
+}
+
+const NUTRITION_SCHEDULE: Record<TabType, NutritionPlan> = {
   'D-3': {
     title: 'Início da Carga de Hidratos',
     targetCarbs: '6-8 g/kg',
@@ -60,7 +73,7 @@ const NUTRITION_SCHEDULE = {
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<TabType>('D-1');
   const [race, setRace] = useState<any>(null);
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
@@ -98,7 +111,7 @@ export default function DashboardPage() {
           setCheckpoints([
             { name: 'PAC 1 - Inicio Subida', km: (defaultDistance * 0.25).toFixed(1), carbs_g: 40, water_ml: 500 },
             { name: 'PAC 2 - Merujal (Dropbag)', km: (defaultDistance * 0.55).toFixed(1), carbs_g: 75, water_ml: 750 },
-            { name: 'PAC 3 - Final Cume', km: (defaultDistance * 0.80).toFixed(1), carbs_g: 50, water_ml: 500 },
+            { name: 'PAC 3 - Final Cume', km: (defaultDistance * 0.80).toFixed(1), carbs_g: 50, water_ml: 500 }
           ]);
         }
       }
@@ -118,7 +131,7 @@ export default function DashboardPage() {
       navigator.share({
         title: `Plano Tático - ${race?.title || 'Trail Running'}`,
         text: 'Estratégia de nutrição e abastecimentos para a minha próxima prova!',
-        url: window.location.href,
+        url: window.location.href
       });
     } else {
       navigator.clipboard.writeText(window.location.href);
@@ -247,8 +260,68 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
-              {(['D-3', 'D-2', 'D-1', 'RACE_DAY'] as const).map((tab) => (
+              {(['D-3', 'D-2', 'D-1', 'RACE_DAY'] as TabType[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    activeTab === tab
+                      ? 'bg-emerald-500 text-slate-950 font-black shadow-lg'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {tab === 'RACE_DAY' ? 'Prova' : tab}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Objetivo do Dia</span>
+              <p className="text-sm font-extrabold text-white mt-0.5">{currentPlan.title}</p>
+            </div>
+            <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Alvo de Hidratos</span>
+              <p className="text-sm font-extrabold text-emerald-400 mt-0.5">{currentPlan.targetCarbs}</p>
+            </div>
+            <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Líquidos</span>
+              <p className="text-sm font-extrabold text-blue-400 mt-0.5">{currentPlan.water}</p>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-300 bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl">
+            💡 <strong>Foco Tático:</strong> {currentPlan.focus}
+          </p>
+
+          <div className="space-y-3 pt-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Refeições Recomendadas</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {currentPlan.meals.map((meal, index) => (
+                <div key={index} className="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl flex items-start gap-3">
+                  <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-emerald-400">{meal.time}</p>
+                    <p className="text-xs text-slate-200 mt-1">{meal.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+          <h2 className="text-base font-bold text-white mb-2 flex items-center gap-2">
+            <ShieldAlert className="w-5 h-5 text-amber-400" />
+            Notas Táticas do Treinador
+          </h2>
+          <p className="text-sm text-slate-300 leading-relaxed">
+            Atenção à primeira subida aos 10km. Mantém o ritmo controlado e não forces a Frequência Cardíaca acima da Z3. No PAC 2 terás o teu dropbag pronto com eletrólitos e reforço de géis.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  );
+}
