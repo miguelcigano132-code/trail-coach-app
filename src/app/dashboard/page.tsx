@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { User, LogOut, ShieldAlert, Utensils, Mountain, CheckCircle, Share2, MapPin, Flag, Droplet, Flame } from 'lucide-react';
+import ElevationProfile from '@/components/ElevationProfile';
 
 type TabType = 'D-3' | 'D-2' | 'D-1' | 'RACE_DAY';
 
