@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { parseGPXString } from '@/lib/gpxParser';
+import { parseGPXString, readCompressedOrTextFile } from '@/lib/gpxParser';
 import ElevationProfile, { GPXPoint } from '@/components/ElevationProfile';
-import { Mountain, Plus, CheckCircle2, User, Save, Upload, FileText, Settings, Activity } from 'lucide-react';
+import { Mountain, Plus, CheckCircle2, User, Upload, FileText, Settings, Activity } from 'lucide-react';
 
 export default function AdminPage() {
   // Estado de Navegação/Aba do Admin
@@ -56,19 +56,22 @@ export default function AdminPage() {
     loadData();
   }, []);
 
-  // Processar ficheiro GPX localmente assim que é selecionado
+  // Processar ficheiro GPX/GZ localmente
   const handleGpxFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setGpxFile(file);
-    const text = await file.text();
-    const { points, totalDistanceKm, elevationGainM } = parseGPXString(text);
+    try {
+      const text = await readCompressedOrTextFile(file);
+      const { points, totalDistanceKm, elevationGainM } = parseGPXString(text);
 
-    setGpxPoints(points);
-    // Preenche automaticamente Distância e D+ extraídos do GPX
-    if (totalDistanceKm > 0) setDistance(totalDistanceKm.toString());
-    if (elevationGainM > 0) setElevation(elevationGainM.toString());
+      setGpxPoints(points);
+      if (totalDistanceKm > 0) setDistance(totalDistanceKm.toString());
+      if (elevationGainM > 0) setElevation(elevationGainM.toString());
+    } catch (err) {
+      alert('Erro ao processar o ficheiro GPX/.GZ selecionado.');
+    }
   };
 
   // Handler para Criar Prova
@@ -79,7 +82,6 @@ export default function AdminPage() {
 
     let gpxUrl = null;
 
-    // Se houver ficheiro GPX, guarda no Supabase Storage
     if (gpxFile) {
       const fileExt = gpxFile.name.split('.').pop();
       const fileName = `${Date.now()}.${fileExt}`;
@@ -185,7 +187,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* --- PASSO 1: CRIAR PROVA & UPLOAD DE GPX --- */}
+        {/* --- PASSO 1: CRIAR PROVA & UPLOAD DE GPX/GZ --- */}
         {activeStep === 'RACE' && (
           <form onSubmit={handleCreateRace} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -198,20 +200,20 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* UPLOAD DO GPX */}
+            {/* UPLOAD DO GPX / GZ */}
             <div className="border-2 border-dashed border-slate-800 bg-slate-950/50 rounded-2xl p-6 text-center hover:border-emerald-500/50 transition-colors">
               <Upload className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
               <label className="block text-xs font-bold text-slate-300 uppercase cursor-pointer">
-                Carregar Ficheiro GPX da Prova
+                Carregar Ficheiro GPX / GZ da Prova
                 <input
                   type="file"
-                  accept=".gpx"
+                  accept=".gpx,.gz,.gpx.gz"
                   onChange={handleGpxFileChange}
                   className="hidden"
                 />
               </label>
               <p className="text-[11px] text-slate-500 mt-1">
-                {gpxFile ? `Ficheiro Selecionado: ${gpxFile.name}` : 'Carrega o ficheiro .gpx para calcular automaticamente altimetria, distância e D+'}
+                {gpxFile ? `Ficheiro Selecionado: ${gpxFile.name}` : 'Suporta ficheiros .gpx e .gz (descompressão automática)'}
               </p>
             </div>
 
@@ -231,4 +233,56 @@ export default function AdminPage() {
                 type="text"
                 required
                 value={title}
-                onChange={(e)
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ex: Trail São João"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Localização</label>
+                <input
+                  type="text"
+                  required
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="Ex: Vila Nova de Gaia, Portugal"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Data da Prova</label>
+                <input
+                  type="date"
+                  required
+                  value={raceDate}
+                  onChange={(e) => setRaceDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Distância (KM)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  required
+                  value={distance}
+                  onChange={(e) => setDistance(e.target.value)}
+                  placeholder="32"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 px-4 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Desnível Positivo (D+ m)</label>
+                <input
+                  type="number"
+                  required
+                  value={elevation}
+                  onChange={(e) => setElevation(e.target.value)}
+                  placeholder
