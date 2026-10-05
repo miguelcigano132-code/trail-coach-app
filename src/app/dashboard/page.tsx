@@ -89,7 +89,7 @@ export default function DashboardPage() {
       }
       setUser(user);
 
-      // Procura a prova atribuída ao ID do atleta autenticado
+      // Procura a prova atribuída ao atleta autenticado
       const { data: raceData } = await supabase
         .from('races')
         .select('id, title, location, distance_km, elevation_gain_m, race_date, gpx_data, target_carbs, target_hydration, target_pace, coach_notes, created_at')
@@ -107,10 +107,8 @@ export default function DashboardPage() {
           .eq('race_id', raceData.id)
           .order('km', { ascending: true });
 
-        if (cpData && cpData.length > 0) {
+        if (cpData) {
           setCheckpoints(cpData);
-        } else {
-          setCheckpoints([]);
         }
       }
       setLoading(false);
@@ -133,7 +131,7 @@ export default function DashboardPage() {
       });
     } else {
       navigator.clipboard.writeText(window.location.href);
-      alert('Link do teu plano tático copiado para a área de transferência!');
+      alert('Link copiado para a área de transferência!');
     }
   };
 
@@ -179,7 +177,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Cartão Principal da Prova */}
+        {/* Cartão da Prova */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-slate-800 p-6 md:p-8 shadow-2xl">
           <div className="absolute -right-10 -bottom-10 opacity-5 text-emerald-400 pointer-events-none">
             <Mountain size={280} />
@@ -228,7 +226,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Gráfico de Altimetria */}
+        {/* Gráfico Altimétrico */}
         {race?.gpx_data && race.gpx_data.length > 0 && (
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
             <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
@@ -239,7 +237,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Postos de Abastecimento */}
+        {/* Abastecimentos */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
             <Flag className="w-5 h-5 text-emerald-400" />
@@ -287,7 +285,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Plano de Nutrição Pré-Prova */}
+        {/* Nutrição */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div className="flex items-center gap-2">
@@ -347,14 +345,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Notas Táticas do Treinador */}
+        {/* Notas do Treinador */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
           <h2 className="text-base font-bold text-white mb-2 flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-amber-400" />
             Notas Táticas do Treinador
           </h2>
           <p className="text-sm text-slate-300 leading-relaxed">
-            {race?.coach_notes || 'Atenção à primeira subida. Mantém o ritmo controlado e cumpre o plano de nutrição e hidratação estabelecido.'}
+            {race?.coach_notes || 'Atenção à primeira subida. Mantém o ritmo controlled e cumpre o plano de nutrição e hidratação estabelecido.'}
           </p>
         </div>
 
