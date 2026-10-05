@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import {
@@ -13,12 +13,13 @@ import {
   ShieldAlert,
   Check,
   LayoutDashboard,
+  User,
 } from 'lucide-react';
 import ElevationProfile from '@/components/ElevationProfile';
 
 // Função para calcular a distância em KM entre duas coordenadas GPS (Haversine)
 function getHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; // Raio da Terra em km
+  const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
@@ -58,6 +59,10 @@ function calculateKmForWaypoint(wptLat: number, wptLon: number, routePoints: any
 }
 
 export default function AdminPage() {
+  // Lista de Atletas e Seleção
+  const [athletes, setAthletes] = useState<any[]>([]);
+  const [selectedAthleteId, setSelectedAthleteId] = useState<string>('');
+
   // Dados da Prova
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
@@ -86,6 +91,18 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  // Procurar atletas ao carregar a página
+  useEffect(() => {
+    async function fetchAthletes() {
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (!error && data) {
+        setAthletes(data);
+        if (data.length > 0) setSelectedAthleteId(data[0].id);
+      }
+    }
+    fetchAthletes();
+  }, []);
+
   const handleAddCheckpoint = () => {
     setCheckpoints([
       ...checkpoints,
@@ -112,7 +129,7 @@ export default function AdminPage() {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(text, 'text/xml');
 
-    // 1. Processar os pontos do percurso (trkpt)
+    // 1. Processar pontos do percurso (trkpt)
     const trkpts = Array.from(xmlDoc.querySelectorAll('trkpt'));
     let totalDist = 0;
     const points: any[] = [];
@@ -157,7 +174,6 @@ export default function AdminPage() {
         };
       });
 
-      // Ordena os PACs pela ordem cronológica dos quilómetros
       extractedPACs.sort((a, b) => parseFloat(a.km) - parseFloat(b.km));
       setCheckpoints(extractedPACs);
     }
@@ -183,6 +199,7 @@ export default function AdminPage() {
         .from('races')
         .insert([
           {
+            athlete_id: selectedAthleteId || null, // Atribui a prova ao atleta selecionado
             title,
             location,
             race_date: raceDate,
@@ -230,7 +247,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-10 font-sans">
       <div className="max-w-4xl mx-auto space-y-8">
-        {/* Cabeçalho com o Botão de Atalho para o Atleta */}
+        {/* Cabeçalho */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-6">
           <div>
             <h1 className="text-2xl font-black text-white flex items-center gap-2">
@@ -256,6 +273,31 @@ export default function AdminPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Seleção do Atleta */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+            <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+              <User className="w-4 h-4" /> Atribuir Atleta
+            </h2>
+            <div>
+              <label className="text-slate-400 font-bold block mb-1 text-xs">Atleta</label>
+              <select
+                value={selectedAthleteId}
+                onChange={(e) => setSelectedAthleteId(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white text-xs focus:outline-none focus:border-emerald-500"
+              >
+                {athletes.length === 0 ? (
+                  <option value="">Nenhum atleta encontrado</option>
+                ) : (
+                  athletes.map((athlete) => (
+                    <option key={athlete.id} value={athlete.id}>
+                      {athlete.full_name || athlete.email || athlete.id}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          </div>
+
           {/* Ficheiro GPX */}
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
             <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
