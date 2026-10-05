@@ -1,59 +1,72 @@
-import gpxParser from 'gpxparser';
+import { GPXPoint } from '@/components/ElevationProfile';
 
-export interface CheckpointEstimate {
-  name: string;
-  km: number;
-  elevation: number;
-  estimatedTimeMinutes: number;
-  carbsNeededGrams: number;
-  waterNeededMl: number;
+function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Raio da Terra em km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 /**
- * Processa o ficheiro GPX e calcula o tempo estimado em cada posto de abastecimento
- * com base no ritmo ajustado à inclinação (GAP - Graded Adjusted Pace)
+ * Lê um ficheiro de texto simples ou comprimido (.gz / .gpx.gz)
  */
-export function calculateRaceStrategy(
-  gpxXmlContent: string,
-  checkpointsKm: number[],
-  flatPaceMinPerKm: number = 6.0, // ex: 6:00 min/km em plano
-  carbsTargetPerHour: number = 60 // ex: 60g de hidratos/hora
-) {
-  const gpx = new gpxParser();
-  gpx.parse(gpxXmlContent);
+export async function readCompressedOrTextFile(file: File): Promise<string> {
+  if (file.name.endsWith('.gz') || file.type.includes('gzip')) {
+    try {
+      const ds = new DecompressionStream('gzip');
+      const decompressedStream = file.stream().pipeThrough(ds);
+      const response = new Response(decompressedStream);
+      return await response.text();
+    } catch (err) {
+      console.error('Erro ao descomprimir ficheiro .gz:', err);
+      throw new Error('Não foi possível descomprimir o ficheiro .gz.');
+    }
+  }
+  return await file.text();
+}
 
-  const totalDistance = gpx.tracks[0].distance.total / 1000; // km
-  const totalElevationGain = gpx.tracks[0].elevation.pos; // D+
+export function parseGPXString(xmlText: string): { points: GPXPoint[]; totalDistanceKm: number; elevationGainM: number } {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+  const trkpts = xmlDoc.getElementsByTagName('trkpt');
 
-  // Algoritmo simplificado de estimação considerando desnível (Regla Naismith/GAP)
-  // Cada 100m D+ adicionam o equivalente a ~1km plano em tempo
-  const equivalentFlatKm = totalDistance + (totalElevationGain / 100);
-  const totalEstimatedMinutes = equivalentFlatKm * flatPaceMinPerKm;
+  const points: GPXPoint[] = [];
+  let totalDistanceKm = 0;
+  let elevationGainM = 0;
 
-  // Calcular estímulo e nutrição para cada posto
-  const calculatedCheckpoints: CheckpointEstimate[] = checkpointsKm.map((kmMark, index) => {
-    const progressRatio = kmMark / totalDistance;
-    const estimatedTimeMinutes = Math.round(totalEstimatedMinutes * progressRatio);
-    
-    // Cálculo do consumo nutricional acumulado até ao posto
-    const hoursElapsed = estimatedTimeMinutes / 60;
-    const carbsNeededGrams = Math.round(hoursElapsed * carbsTargetPerHour);
-    const waterNeededMl = Math.round(hoursElapsed * 600); // Média de 600ml/h
+  for (let i = 0; i < trkpts.length; i++) {
+    const pt = trkpts[i];
+    const lat = parseFloat(pt.getAttribute('lat') || '0');
+    const lon = parseFloat(pt.getAttribute('lon') || '0');
+    const eleNode = pt.getElementsByTagName('ele')[0];
+    const ele = eleNode ? parseFloat(eleNode.textContent || '0') : 0;
 
-    return {
-      name: `PAC ${index + 1}`,
-      km: kmMark,
-      elevation: 0, // Pode ser extraído do ponto exato da trégua do GPX
-      estimatedTimeMinutes,
-      carbsNeededGrams,
-      waterNeededMl,
-    };
-  });
+    if (i > 0) {
+      const prev = points[i - 1];
+      const dist = calculateHaversineDistance(prev.lat, prev.lon, lat, lon);
+      totalDistanceKm += dist;
+
+      const eleDiff = ele - prev.ele;
+      if (eleDiff > 0) {
+        elevationGainM += eleDiff;
+      }
+    }
+
+    points.push({
+      lat,
+      lon,
+      ele,
+      distanceKm: parseFloat(totalDistanceKm.toFixed(2)),
+    });
+  }
 
   return {
-    totalDistance: totalDistance.toFixed(1),
-    totalElevationGain: Math.round(totalElevationGain),
-    totalEstimatedMinutes,
-    checkpoints: calculatedCheckpoints,
+    points,
+    totalDistanceKm: parseFloat(totalDistanceKm.toFixed(1)),
+    elevationGainM: Math.round(elevationGainM),
   };
 }
