@@ -16,7 +16,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'create' | 'customize'>('customize');
   const [mode, setMode] = useState<'manual' | 'trainingpeaks'>('trainingpeaks');
   
-  // Dados de Supabase
+  // Dados do Supabase
   const [races, setRaces] = useState<any[]>([]);
   const [athletes, setAthletes] = useState<any[]>([]);
   
@@ -31,7 +31,7 @@ export default function AdminPage() {
   const [tpFileName, setTpFileName] = useState<string>('');
   const [coachNotes, setCoachNotes] = useState<string>('');
   
-  // Feedback
+  // Estados de interface
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -42,7 +42,11 @@ export default function AdminPage() {
   async function fetchInitialData() {
     try {
       // Carregar Provas
-      const { data: racesData } = await supabase.from('races').select('*').order('created_at', { ascending: false });
+      const { data: racesData } = await supabase
+        .from('races')
+        .select('*')
+        .order('created_at', { ascending: false });
+
       if (racesData && racesData.length > 0) {
         setRaces(racesData);
         setSelectedRaceId(racesData[0].id);
@@ -59,7 +63,7 @@ export default function AdminPage() {
     }
   }
 
-  // Leitura nativa de ficheiros .gz, .csv, .json (Sem bibliotecas externas)
+  // Leitura nativa de ficheiros .gz, .csv, .json
   const handleTpFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0];
     if (!uploadedFile) return;
@@ -85,16 +89,15 @@ export default function AdminPage() {
     }
   };
 
-  // Guardar nova prova na Aba 1
+  // Criar nova prova na Aba 1
   const handleCreateRace = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('races')
-        .insert([{ title: newRaceTitle, distance_km: Number(newRaceDistance) }])
-        .select();
+        .insert([{ title: newRaceTitle, distance_km: Number(newRaceDistance) }]);
 
       if (error) throw error;
 
@@ -110,7 +113,7 @@ export default function AdminPage() {
     }
   };
 
-  // Guardar plano na Aba 2
+  // Guardar atribuição do plano na Aba 2
   const handleSavePlan = async () => {
     setLoading(true);
 
@@ -142,7 +145,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-[#050914] text-slate-100 p-4 md:p-8 font-sans">
       <div className="max-w-4xl mx-auto space-y-6">
         
-        {/* Cabeçalho */}
+        {/* Cabeçalho do Painel */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-800/60">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
@@ -181,12 +184,10 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Notificação de Sucesso */}
+        {/* Notificação */}
         {successMessage && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl text-xs font-bold flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> {successMessage}
-            </span>
+          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" /> {successMessage}
           </div>
         )}
 
@@ -230,7 +231,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Upload GPX */}
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                   Carregar Ficheiro GPX da Prova
@@ -263,15 +263,11 @@ export default function AdminPage() {
         {/* ABA 2: PERSONALIZAR ATLETA */}
         {activeTab === 'customize' && (
           <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
-            
-            <div className="flex justify-between items-center">
-              <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-emerald-400" />
-                Selecionar Prova & Personalizar Métricas do Atleta
-              </h2>
-            </div>
+            <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-emerald-400" />
+              Selecionar Prova & Personalizar Métricas do Atleta
+            </h2>
 
-            {/* Seleção de Prova e Atleta */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
@@ -308,7 +304,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Alternador de Modo */}
             <div className="space-y-3">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Modo de Configuração de Métricas
@@ -340,7 +335,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Upload do TrainingPeaks / .gz */}
             {mode === 'trainingpeaks' && (
               <label className="border-2 border-dashed border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-500/5 hover:bg-emerald-500/10 transition-all rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer text-center group">
                 <input
@@ -359,7 +353,6 @@ export default function AdminPage() {
               </label>
             )}
 
-            {/* Notas Táticas */}
             <div className="space-y-2">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Notas Táticas Personalizadas do Treinador
@@ -373,7 +366,6 @@ export default function AdminPage() {
               />
             </div>
 
-            {/* Botão Guardar */}
             <button
               type="button"
               onClick={handleSavePlan}
