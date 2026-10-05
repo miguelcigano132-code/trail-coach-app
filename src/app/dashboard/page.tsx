@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { User, LogOut, ShieldAlert, Award, Droplet, Flame, Utensils, Calendar, Share2, Mountain, CheckCircle } from 'lucide-react';
+import { User, LogOut, ShieldAlert, Utensils, Mountain, CheckCircle, Share2, Camera } from 'lucide-react';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'D-3' | 'D-2' | 'D-1' | 'RACE_DAY'>('D-1');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -27,6 +28,19 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/login');
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: 'O meu Plano Tático de Trail',
+        text: 'Estratégia de nutrição e ritmo para a minha próxima prova de trail!',
+        url: window.location.href,
+      });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      alert('Link do teu plano tático copiado para a área de transferência!');
+    }
   };
 
   // Planos de Nutrição Pré-Prova
@@ -98,8 +112,12 @@ export default function DashboardPage() {
         {/* Top bar */}
         <div className="flex justify-between items-center border-b border-slate-800 pb-6">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-lg">
-              <User className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-lg overflow-hidden">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Atleta" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-6 h-6" />
+              )}
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">Plano Tático Individual</h1>
@@ -107,15 +125,23 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 transition-colors"
-          >
-            <LogOut className="w-4 h-4 text-slate-400" /> Sair
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-extrabold transition-colors"
+            >
+              <Share2 className="w-4 h-4" /> Partilhar
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 transition-colors"
+            >
+              <LogOut className="w-4 h-4 text-slate-400" /> Sair
+            </button>
+          </div>
         </div>
 
-        {/* --- CARTÃO VISUAL DO ATLETA (Estilo Redes Sociais) --- */}
+        {/* --- CARTÃO VISUAL DO ATLETA --- */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-slate-800 p-6 md:p-8 shadow-2xl">
           <div className="absolute -right-10 -bottom-10 opacity-5 text-emerald-400 pointer-events-none">
             <Mountain size={280} />
@@ -123,8 +149,12 @@ export default function DashboardPage() {
 
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-400 font-black text-2xl">
-                TP
+              <div className="w-20 h-20 rounded-2xl bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-400 font-black text-2xl overflow-hidden relative group">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt="Foto Atleta" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="font-black text-emerald-400">TP</span>
+                )}
               </div>
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
@@ -156,7 +186,6 @@ export default function DashboardPage() {
               <h2 className="text-lg font-bold text-white">Plano de Nutrição Pré-Prova</h2>
             </div>
 
-            {/* Tabs para D-3, D-2, D-1 e Dia da Prova */}
             <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
               {(['D-3', 'D-2', 'D-1', 'RACE_DAY'] as const).map((tab) => (
                 <button
@@ -174,7 +203,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Resumo do dia selecionado */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
               <span className="text-[10px] font-bold uppercase text-slate-500">Objetivo do Dia</span>
@@ -194,7 +222,6 @@ export default function DashboardPage() {
             💡 <strong>Foco Tático:</strong> {currentPlan.focus}
           </p>
 
-          {/* Lista de Refeições */}
           <div className="space-y-3 pt-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Refeições Recomendadas</h3>
             <div className="grid gap-3 sm:grid-cols-2">
