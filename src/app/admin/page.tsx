@@ -20,6 +20,8 @@ interface GpxPoint {
   lon: number;
   ele: number;
   dist: number;
+  distanceKm: number; // Propriedade necessária para o ElevationProfile
+  elevation: number;  // Propriedade para compatibilidade
 }
 
 interface AutoCheckpoint {
