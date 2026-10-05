@@ -1,72 +1,72 @@
-import { GPXPoint } from '@/components/ElevationProfile';
-
-function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+// Distância em KM entre duas coordenadas GPS (Haversine)
+function getHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; // Raio da Terra em km
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLon = ((lon2 - lon1) * Math.PI) / 180;
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
-/**
- * Lê um ficheiro de texto simples ou comprimido (.gz / .gpx.gz)
- */
-export async function readCompressedOrTextFile(file: File): Promise<string> {
-  if (file.name.endsWith('.gz') || file.type.includes('gzip')) {
-    try {
-      const ds = new DecompressionStream('gzip');
-      const decompressedStream = file.stream().pipeThrough(ds);
-      const response = new Response(decompressedStream);
-      return await response.text();
-    } catch (err) {
-      console.error('Erro ao descomprimir ficheiro .gz:', err);
-      throw new Error('Não foi possível descomprimir o ficheiro .gz.');
+// Encontra o quilómetro exato no percurso para um Waypoint
+function calculateKmForWaypoint(wptLat: number, wptLon: number, routePoints: any[]) {
+  let accumulatedDistance = 0;
+  let minDistance = Infinity;
+  let closestKm = 0;
+
+  for (let i = 0; i < routePoints.length; i++) {
+    if (i > 0) {
+      accumulatedDistance += getHaversineDistance(
+        routePoints[i - 1].lat,
+        routePoints[i - 1].lon,
+        routePoints[i].lat,
+        routePoints[i].lon
+      );
+    }
+
+    const distToWpt = getHaversineDistance(wptLat, wptLon, routePoints[i].lat, routePoints[i].lon);
+    if (distToWpt < minDistance) {
+      minDistance = distToWpt;
+      closestKm = accumulatedDistance;
     }
   }
-  return await file.text();
+
+  return closestKm;
 }
 
-export function parseGPXString(xmlText: string): { points: GPXPoint[]; totalDistanceKm: number; elevationGainM: number } {
+export function parseGPX(xmlText: string) {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-  const trkpts = xmlDoc.getElementsByTagName('trkpt');
 
-  const points: GPXPoint[] = [];
-  let totalDistanceKm = 0;
-  let elevationGainM = 0;
+  // 1. Extrai os pontos de elevação/percurso (<trkpt>)
+  const trkpts = Array.from(xmlDoc.querySelectorAll('trkpt'));
+  const routePoints = trkpts.map((pt) => ({
+    lat: parseFloat(pt.getAttribute('lat') || '0'),
+    lon: parseFloat(pt.getAttribute('lon') || '0'),
+    ele: parseFloat(pt.querySelector('ele')?.textContent || '0'),
+  }));
 
-  for (let i = 0; i < trkpts.length; i++) {
-    const pt = trkpts[i];
-    const lat = parseFloat(pt.getAttribute('lat') || '0');
-    const lon = parseFloat(pt.getAttribute('lon') || '0');
-    const eleNode = pt.getElementsByTagName('ele')[0];
-    const ele = eleNode ? parseFloat(eleNode.textContent || '0') : 0;
+  // 2. Extrai os Postos de Abastecimento (<wpt>)
+  const wpts = Array.from(xmlDoc.querySelectorAll('wpt'));
+  const extractedPACs = wpts.map((wpt, index) => {
+    const name = wpt.querySelector('name')?.textContent || `PAC ${index + 1}`;
+    const lat = parseFloat(wpt.getAttribute('lat') || '0');
+    const lon = parseFloat(wpt.getAttribute('lon') || '0');
 
-    if (i > 0) {
-      const prev = points[i - 1];
-      const dist = calculateHaversineDistance(prev.lat, prev.lon, lat, lon);
-      totalDistanceKm += dist;
+    const km = calculateKmForWaypoint(lat, lon, routePoints);
 
-      const eleDiff = ele - prev.ele;
-      if (eleDiff > 0) {
-        elevationGainM += eleDiff;
-      }
-    }
+    return {
+      name: name,
+      km: parseFloat(km.toFixed(1)),
+      carbs_g: 60,   // Valor padrão
+      water_ml: 500  // Valor padrão
+    };
+  });
 
-    points.push({
-      lat,
-      lon,
-      ele,
-      distanceKm: parseFloat(totalDistanceKm.toFixed(2)),
-    });
-  }
-
-  return {
-    points,
-    totalDistanceKm: parseFloat(totalDistanceKm.toFixed(1)),
-    elevationGainM: Math.round(elevationGainM),
-  };
+  return { routePoints, extractedPACs };
 }
