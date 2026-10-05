@@ -90,12 +90,13 @@ export default function DashboardPage() {
       setUser(user);
 
       // Busca a prova incluindo explicitamente a coluna gpx_data
-      const { data: raceData } = await supabase
-        .from('races')
-        .select('id, title, location, distance_km, elevation_gain_m, race_date, gpx_data, created_at')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // COMO DEVE FICAR:
+    const { data: raceData } = await supabase
+    .from('races')
+    .select('id, title, location, distance_km, elevation_gain_m, race_date, gpx_data, target_carbs, target_hydration, target_pace, created_at')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
       if (raceData) {
         setRace(raceData);
