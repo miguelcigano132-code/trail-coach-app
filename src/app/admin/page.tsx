@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { Plus, Trash2, Save, Upload, Mountain, Flag, ShieldAlert, Check } from 'lucide-react';
 import ElevationProfile from '@/components/ElevationProfile';
+import Link from 'next/link';
+import { Plus, Trash2, Save, Upload, Mountain, Flag, ShieldAlert, Check, LayoutDashboard } from 'lucide-react';
 
 // Função para calcular a distância em KM entre duas coordenadas GPS (Haversine)
 function getHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
