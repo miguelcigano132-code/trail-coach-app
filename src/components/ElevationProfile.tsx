@@ -23,17 +23,19 @@ export default function ElevationProfile({ points }: ElevationProfileProps) {
       <div className="flex justify-between text-xs font-bold text-slate-400">
         <span>Alt. Mínima: {Math.round(minEle)}m</span>
         <span>Alt. Máxima: {Math.round(maxEle)}m</span>
-        <span>Distância: {totalDist} km</span>
+        <span>Distância: {totalDist.toFixed(1)} km</span>
       </div>
-      <div className="h-32 w-full flex items-end gap-[1px] bg-slate-900/50 p-2 rounded-lg overflow-hidden">
+
+      {/* Gráfico Visual de Altimetria */}
+      <div className="h-32 w-full flex items-end gap-[1px] bg-slate-900/50 p-2 rounded-lg overflow-x-auto">
         {points.map((pt, idx) => {
           const heightPercent = maxEle === minEle ? 50 : ((pt.ele - minEle) / (maxEle - minEle)) * 100;
           return (
             <div
               key={idx}
-              className="flex-1 bg-emerald-500 hover:bg-emerald-400 transition-all rounded-t-[1px]"
+              className="flex-1 min-w-[2px] bg-emerald-500 hover:bg-emerald-400 transition-all rounded-t-[1px]"
               style={{ height: `${Math.max(heightPercent, 5)}%` }}
-              title={`Distância: ${pt.distanceKm}km | Elevação: ${Math.round(pt.ele)}m`}
+              title={`Km ${pt.distanceKm.toFixed(1)}: ${Math.round(pt.ele)}m de altitude`}
             />
           );
         })}
