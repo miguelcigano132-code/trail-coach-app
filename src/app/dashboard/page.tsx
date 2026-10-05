@@ -89,14 +89,12 @@ export default function DashboardPage() {
       }
       setUser(user);
 
-      // Busca a prova incluindo explicitamente a coluna gpx_data
-      // COMO DEVE FICAR:
-    const { data: raceData } = await supabase
-    .from('races')
-    .select('id, title, location, distance_km, elevation_gain_m, race_date, gpx_data, target_carbs, target_hydration, target_pace, created_at')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+      const { data: raceData } = await supabase
+        .from('races')
+        .select('id, title, location, distance_km, elevation_gain_m, race_date, gpx_data, target_carbs, target_hydration, target_pace, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (raceData) {
         setRace(raceData);
@@ -208,34 +206,32 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* COMO DEVE FICAR (Lê os dados da prova do Supabase): */}
-<div className="flex gap-3 w-full md:w-auto">
-  <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
-    <p className="text-[10px] font-bold text-slate-500 uppercase">Carbs/Hora</p>
-    <p className="text-lg font-black text-emerald-400">
-      {race?.target_carbs || '75g'}
-    </p>
-  </div>
+            <div className="flex gap-3 w-full md:w-auto">
+              <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
+                <p className="text-[10px] font-bold text-slate-500 uppercase">Carbs/Hora</p>
+                <p className="text-lg font-black text-emerald-400">
+                  {race?.target_carbs || '75g'}
+                </p>
+              </div>
 
-  <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
-    <p className="text-[10px] font-bold text-slate-500 uppercase">Hidratação</p>
-    <p className="text-lg font-black text-blue-400">
-      {race?.target_hydration || '600ml'}
-    </p>
-  </div>
+              <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
+                <p className="text-[10px] font-bold text-slate-500 uppercase">Hidratação</p>
+                <p className="text-lg font-black text-blue-400">
+                  {race?.target_hydration || '600ml'}
+                </p>
+              </div>
 
-  {race?.target_pace && (
-    <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
-      <p className="text-[10px] font-bold text-slate-500 uppercase">Ritmo Alvo</p>
-      <p className="text-lg font-black text-amber-400">{race.target_pace}</p>
-    </div>
-  )}
-</div>
+              {race?.target_pace && (
+                <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase">Ritmo Alvo</p>
+                  <p className="text-lg font-black text-amber-400">{race.target_pace}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* --- GRÁFICO DE ALTIMETRIA DA PROVA DO ATLETA --- */}
+        {/* Gráfico de Altimetria */}
         {race?.gpx_data && race.gpx_data.length > 0 && (
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
             <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
