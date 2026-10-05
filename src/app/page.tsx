@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import pako from 'pako';
 import { 
   FileUp, 
   SlidersHorizontal, 
@@ -21,7 +20,6 @@ export default function AdminPage() {
   const [selectedRaceId, setSelectedRaceId] = useState<string>('');
   const [selectedAthleteId, setSelectedAthleteId] = useState<string>('');
   
-  const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [coachNotes, setCoachNotes] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<boolean>(false);
@@ -32,14 +30,12 @@ export default function AdminPage() {
   }, []);
 
   async function fetchInitialData() {
-    // Carregar provas existentes
     const { data: racesData } = await supabase.from('races').select('*').order('created_at', { ascending: false });
     if (racesData) {
       setRaces(racesData);
       if (racesData.length > 0) setSelectedRaceId(racesData[0].id);
     }
 
-    // Carregar atletas/utilizadores
     const { data: athletesData } = await supabase.from('profiles').select('*');
     if (athletesData) {
       setAthletes(athletesData);
@@ -47,31 +43,29 @@ export default function AdminPage() {
     }
   }
 
-  // Função para ler ficheiros normal e ficheiros comprimidos .gz
+  // Leitura de ficheiros comprimidos (.gz) via API nativa do browser (sem dependências)
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0];
     if (!uploadedFile) return;
 
-    setFile(uploadedFile);
     setFileName(uploadedFile.name);
 
     try {
-      const arrayBuffer = await uploadedFile.arrayBuffer();
       let fileText = '';
 
-      // Se for um ficheiro com extensão .gz (ex: .fit.gz, .csv.gz, .json.gz)
       if (uploadedFile.name.endsWith('.gz')) {
-        const decompressed = pako.ungzip(new Uint8Array(arrayBuffer));
-        fileText = new TextDecoder('utf-8').decode(decompressed);
+        const ds = new DecompressionStream('gzip');
+        const decompressedStream = uploadedFile.stream().pipeThrough(ds);
+        const response = new Response(decompressedStream);
+        fileText = await response.text();
       } else {
-        fileText = new TextDecoder('utf-8').decode(arrayBuffer);
+        fileText = await uploadedFile.text();
       }
 
-      console.log('Ficheiro descomprimido/carregado com sucesso!', fileText.substring(0, 100));
-      // Aqui podes processar os dados do ficheiro (CSV, JSON, etc.)
+      console.log('Ficheiro lido com sucesso:', fileText.substring(0, 100));
     } catch (err) {
-      console.error('Erro ao processar ficheiro .gz ou formato inválido:', err);
-      alert('Não foi possível ler o ficheiro. Confirma se o ficheiro .gz está correto.');
+      console.error('Erro ao ler ficheiro:', err);
+      alert('Erro ao ler o ficheiro. Confirma se o ficheiro não está corrompido.');
     }
   };
 
@@ -80,7 +74,6 @@ export default function AdminPage() {
     setSuccessMessage(false);
 
     try {
-      // Atualizar a prova ou atribuir o plano ao atleta no Supabase
       const { error } = await supabase
         .from('races')
         .update({
@@ -95,7 +88,7 @@ export default function AdminPage() {
       setTimeout(() => setSuccessMessage(false), 4000);
     } catch (err: any) {
       alert('Erro ao guardar: ' + err.message);
-    } finally {
+    } fontinally {
       setLoading(false);
     }
   };
@@ -116,7 +109,6 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Abas de Navegação no Topo */}
           <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 text-xs font-bold">
             <button
               onClick={() => setActiveTab('create')}
@@ -141,11 +133,9 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Conteúdo da Separador: Personalizar Atleta */}
         {activeTab === 'customize' && (
           <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6 relative shadow-2xl">
             
-            {/* Título & Sucesso */}
             <div className="flex justify-between items-center">
               <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
                 <UserCheck className="w-4 h-4 text-emerald-400" />
@@ -158,7 +148,6 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* Seleção de Prova e Atleta */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
@@ -195,7 +184,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Alternador de Modo de Configuração */}
             <div className="space-y-3">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Modo de Configuração de Métricas
@@ -227,7 +215,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Área de Drop / Carregamento de Ficheiro */}
             {mode === 'trainingpeaks' && (
               <label className="border-2 border-dashed border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-500/5 hover:bg-emerald-500/10 transition-all rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer text-center group">
                 <input
@@ -246,7 +233,6 @@ export default function AdminPage() {
               </label>
             )}
 
-            {/* Notas Táticas do Treinador */}
             <div className="space-y-2">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Notas Táticas Personalizadas do Treinador
@@ -260,7 +246,6 @@ export default function AdminPage() {
               />
             </div>
 
-            {/* Botão Guardar */}
             <button
               onClick={handleSavePlan}
               disabled={loading}
