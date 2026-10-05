@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { parseGPXString, readCompressedOrTextFile } from '@/lib/gpxParser';
+import ElevationProfile, { GPXPoint } from '@/components/ElevationProfile';
 import { Mountain, Plus, CheckCircle2, User, Upload, FileText, Settings, Activity } from 'lucide-react';
 
 export default function AdminPage() {
@@ -16,7 +17,7 @@ export default function AdminPage() {
   const [distance, setDistance] = useState('');
   const [elevation, setElevation] = useState('');
   const [gpxFile, setGpxFile] = useState<File | null>(null);
-  const [gpxPointsCount, setGpxPointsCount] = useState<number>(0);
+  const [gpxPoints, setGpxPoints] = useState<GPXPoint[]>([]);
   const [loadingRace, setLoadingRace] = useState(false);
   const [raceSuccess, setRaceSuccess] = useState(false);
 
@@ -65,7 +66,7 @@ export default function AdminPage() {
       const text = await readCompressedOrTextFile(file);
       const { points, totalDistanceKm, elevationGainM } = parseGPXString(text);
 
-      setGpxPointsCount(points.length);
+      setGpxPoints(points);
       if (totalDistanceKm > 0) setDistance(totalDistanceKm.toString());
       if (elevationGainM > 0) setElevation(elevationGainM.toString());
     } catch (err) {
@@ -113,7 +114,7 @@ export default function AdminPage() {
       setDistance('');
       setElevation('');
       setGpxFile(null);
-      setGpxPointsCount(0);
+      setGpxPoints([]);
       if (newRace) {
         setRaces([newRace, ...races]);
         setSelectedRace(newRace.id);
@@ -123,11 +124,11 @@ export default function AdminPage() {
     }
   };
 
-  // Handler para Guardar Atribuição e Ficheiro do Atleta
+  // Handler para Guardar Atribuição do Atleta
   const handleSaveAthletePlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProfile || !selectedRace) {
-      alert('Por favor seleciona um atleta e uma prova.');
+    if (!selectedProfile) {
+      alert('Por favor seleciona um atleta.');
       return;
     }
 
@@ -137,7 +138,6 @@ export default function AdminPage() {
     try {
       let extractedData: Record<string, any> = {};
 
-      // Se foi carregado ficheiro no modo TrainingPeaks
       if (inputMode === 'TRAININGPEAKS' && tpFile) {
         try {
           const fileContent = await readCompressedOrTextFile(tpFile);
@@ -152,11 +152,9 @@ export default function AdminPage() {
         }
       }
 
-      // Atualizar o perfil no Supabase
       const { error } = await supabase
         .from('profiles')
         .update({
-          race_id: selectedRace,
           carbs_target_g: parseInt(carbsPerHour) || 75,
           water_target_ml: parseInt(waterPerHour) || 600,
           target_pace: targetPace || '7:30',
@@ -244,9 +242,13 @@ export default function AdminPage() {
               </p>
             </div>
 
-            {gpxPointsCount > 0 && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs font-bold text-emerald-400 flex items-center gap-2">
-                <Activity className="w-4 h-4" /> Processados {gpxPointsCount} pontos de GPS do ficheiro com sucesso.
+            {/* GRÁFICO DE ALTIMETRIA EM TEMPO REAL */}
+            {gpxPoints.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase">
+                  <Activity className="w-4 h-4" /> Altimetria Extraída do Ficheiro GPX
+                </div>
+                <ElevationProfile points={gpxPoints} />
               </div>
             )}
 
