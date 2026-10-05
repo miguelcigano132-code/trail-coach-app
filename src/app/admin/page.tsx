@@ -11,7 +11,8 @@ import {
   PlusCircle,
   Upload,
   Activity,
-  Flag
+  Flag,
+  Calendar
 } from 'lucide-react';
 import ElevationProfile from '@/components/ElevationProfile';
 
@@ -41,6 +42,7 @@ export default function AdminPage() {
   
   // Campos da Aba 1 (Criar Prova & GPX)
   const [newRaceTitle, setNewRaceTitle] = useState('');
+  const [newRaceDate, setNewRaceDate] = useState('');
   const [newRaceDistance, setNewRaceDistance] = useState('');
   const [newRaceElevation, setNewRaceElevation] = useState('');
   const [gpxFileName, setGpxFileName] = useState('');
@@ -235,6 +237,7 @@ export default function AdminPage() {
         .from('races')
         .insert([{ 
           title: newRaceTitle, 
+          race_date: newRaceDate,
           distance_km: Number(newRaceDistance),
           elevation_gain_m: Number(newRaceElevation),
           gpx_data: gpxData
@@ -259,6 +262,7 @@ export default function AdminPage() {
 
       showNotification('Prova e PACs reais do GPX guardados com sucesso!');
       setNewRaceTitle('');
+      setNewRaceDate('');
       setNewRaceDistance('');
       setNewRaceElevation('');
       setGpxFileName('');
@@ -375,7 +379,7 @@ export default function AdminPage() {
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                     Nome da Prova
@@ -390,6 +394,21 @@ export default function AdminPage() {
                   />
                 </div>
 
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">
+                    Data da Prova
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={newRaceDate}
+                    onChange={(e) => setNewRaceDate(e.target.value)}
+                    className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 scheme-dark"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                     Distância Total (KM)
