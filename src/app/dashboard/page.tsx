@@ -297,4 +297,31 @@ export default function DashboardPage() {
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-3
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    activeTab === tab
+                      ? 'bg-emerald-500 text-slate-950 font-black shadow-lg'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {tab === 'RACE_DAY' ? 'Prova' : tab}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Objetivo do Dia</span>
+              <p className="text-sm font-extrabold text-white mt-0.5">{currentPlan.title}</p>
+            </div>
+            <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Alvo de Hidratos</span>
+              <p className="text-sm font-extrabold text-emerald-400 mt-0.5">{currentPlan.targetCarbs}</p>
+            </div>
+            <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
+              <span className="text-[10px] font-bold uppercase text-slate-500">Líquidos</span>
+              <p className="text-sm font-extrabold text-blue-400 mt-0.5">{currentPlan.water}</p>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-300 bg-emerald-500/10 border border-emerald-500/20 p
