@@ -3,26 +3,60 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { User, LogOut, ShieldAlert, Utensils, Mountain, CheckCircle, Share2, Camera } from 'lucide-react';
+import { User, LogOut, ShieldAlert, Utensils, Mountain, CheckCircle, Share2, MapPin, Flag, Droplet, Flame } from 'lucide-react';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'D-3' | 'D-2' | 'D-1' | 'RACE_DAY'>('D-1');
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [race, setRace] = useState<any>(null);
+  const [checkpoints, setCheckpoints] = useState<any[]>([]);
   const router = useRouter();
 
   useEffect(() => {
-    async function getUser() {
+    async function fetchData() {
+      // 1. Obter utilizador atual
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push('/login');
-      } else {
-        setUser(user);
+        return;
+      }
+      setUser(user);
+
+      // 2. Procurar a prova mais recente criada pelo treinador no Supabase
+      const { data: raceData } = await supabase
+        .from('races')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (raceData) {
+        setRace(raceData);
+
+        // 3. Procurar os postos de abastecimento (PACs) dessa prova
+        const { data: cpData } = await supabase
+          .from('checkpoints')
+          .select('*')
+          .eq('race_id', raceData.id)
+          .order('km', { ascending: true });
+
+        if (cpData && cpData.length > 0) {
+          setCheckpoints(cpData);
+        } else {
+          // Exemplo de fallbacks caso a prova ainda não tenha checkpoints inseridos
+          const defaultDistance = raceData.distance_km || 45;
+          setCheckpoints([
+            { name: 'PAC 1 - Inicio Subida', km: (defaultDistance * 0.25).toFixed(1), carbs_g: 40, water_ml: 500 },
+            { name: 'PAC 2 - Merujal (Dropbag)', km: (defaultDistance * 0.55).toFixed(1), carbs_g: 75, water_ml: 750 },
+            { name: 'PAC 3 - Final Cume', km: (defaultDistance * 0.80).toFixed(1), carbs_g: 50, water_ml: 500 },
+          ]);
+        }
       }
       setLoading(false);
     }
-    getUser();
+
+    fetchData();
   }, [router]);
 
   const handleLogout = async () => {
@@ -33,8 +67,8 @@ export default function DashboardPage() {
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: 'O meu Plano Tático de Trail',
-        text: 'Estratégia de nutrição e ritmo para a minha próxima prova de trail!',
+        title: `Plano Tático - ${race?.title || 'Trail Running'}`,
+        text: 'Estratégia de nutrição e abastecimentos para a minha próxima prova!',
         url: window.location.href,
       });
     } else {
@@ -49,10 +83,10 @@ export default function DashboardPage() {
       title: 'Início da Carga de Hidratos',
       targetCarbs: '6-8 g/kg',
       water: '2.5 L',
-      focus: 'Aumentar consumo de arroz, massa, batata e aveia. Reduzir gorduras e fibras para facilitar a digestão.',
+      focus: 'Aumentar consumo de arroz, massa, batata e aveia. Reduzir gorduras e fibras.',
       meals: [
         { time: 'Pequeno-almoço', desc: 'Papa de aveia com banana e mel + Sumo de laranja' },
-        { time: 'Almoço', desc: 'Peito de frango com arroz branco abundante e cozido' },
+        { time: 'Almoço', desc: 'Peito de frango com arroz branco abundante' },
         { time: 'Lanche', desc: 'Panquecas de aveia com compota ou mel' },
         { time: 'Jantar', desc: 'Massa com atum ao natural e molho de tomate ligeiro' }
       ]
@@ -61,7 +95,7 @@ export default function DashboardPage() {
       title: 'Saturação de Glicogénio',
       targetCarbs: '8-10 g/kg',
       water: '3.0 L + Eletrólitos',
-      focus: 'Dia de carga máxima. Hidratação constante com eletrólitos. Evitar alimentos pesados ou novos.',
+      focus: 'Dia de carga máxima. Hidratação constante com eletrólitos.',
       meals: [
         { time: 'Pequeno-almoço', desc: 'Pão branco com compota + 1 banana + Bebida vegetal' },
         { time: 'Almoço', desc: 'Batata doce cozida com filete de peixe branco' },
@@ -85,7 +119,7 @@ export default function DashboardPage() {
       title: 'Estratégia do Dia da Prova',
       targetCarbs: '75g / hora',
       water: '600 ml / hora',
-      focus: 'Pequeno-almoço 3h antes da partida. Ingerir gel/sólido a cada 30-40 minutos no percurso.',
+      focus: 'Pequeno-almoço 3h antes da partida. Ingerir gel/sólido a cada 30-40 minutos.',
       meals: [
         { time: 'Pré-Prova (-3h)', desc: 'Pão branco com marmelada + Banana madura + Café' },
         { time: 'Pré-Partida (-15m)', desc: '1 Gel de pré-partida + 200ml de água' },
@@ -98,7 +132,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 text-sm">
-        A carregar dados do atleta...
+        A carregar estratégia da prova...
       </div>
     );
   }
@@ -112,12 +146,8 @@ export default function DashboardPage() {
         {/* Top bar */}
         <div className="flex justify-between items-center border-b border-slate-800 pb-6">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-lg overflow-hidden">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="Atleta" className="w-full h-full object-cover" />
-              ) : (
-                <User className="w-6 h-6" />
-              )}
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">
+              <User className="w-5 h-5" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">Plano Tático Individual</h1>
@@ -141,7 +171,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* --- CARTÃO VISUAL DO ATLETA --- */}
+        {/* --- CARTÃO VISUAL COM A PROVA REAL DO SUPABASE --- */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-slate-800 p-6 md:p-8 shadow-2xl">
           <div className="absolute -right-10 -bottom-10 opacity-5 text-emerald-400 pointer-events-none">
             <Mountain size={280} />
@@ -149,19 +179,19 @@ export default function DashboardPage() {
 
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-2xl bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-400 font-black text-2xl overflow-hidden relative group">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="Foto Atleta" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="font-black text-emerald-400">TP</span>
-                )}
+              <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-400 font-black text-2xl">
+                TP
               </div>
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
-                  Atleta Oficial
+                  {race ? race.location || 'Prova Ativa' : 'Sem Prova Registada'}
                 </span>
-                <h2 className="text-2xl font-black text-white mt-1">Trail Serra da Freita 45K</h2>
-                <p className="text-xs text-slate-400">Meta: 05h 45m • Ritmo Alvo: 7:30 min/km</p>
+                <h2 className="text-2xl font-black text-white mt-1">
+                  {race ? `${race.title} (${race.distance_km}K)` : 'Carregando Prova...'}
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Desnível: {race?.elevation_gain_m || 0}m D+ • Data: {race?.race_date || 'A definir'}
+                </p>
               </div>
             </div>
 
@@ -178,78 +208,32 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* --- PLANO DE NUTRIÇÃO PRÉ-PROVA --- */}
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-            <div className="flex items-center gap-2">
-              <Utensils className="w-5 h-5 text-emerald-400" />
-              <h2 className="text-lg font-bold text-white">Plano de Nutrição Pré-Prova</h2>
-            </div>
-
-            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
-              {(['D-3', 'D-2', 'D-1', 'RACE_DAY'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
-                    activeTab === tab
-                      ? 'bg-emerald-500 text-slate-950 font-black shadow-lg'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {tab === 'RACE_DAY' ? 'Prova' : tab}
-                </button>
-              ))}
-            </div>
+        {/* --- NOVO: PLANO ESTRATÉGICO DE POSTOS DE ABASTECIMENTO (PACs) --- */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
+          <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
+            <Flag className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-lg font-bold text-white">Postos de Abastecimento & Plano de Ação em Prova</h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
-              <span className="text-[10px] font-bold uppercase text-slate-500">Objetivo do Dia</span>
-              <p className="text-sm font-extrabold text-white mt-0.5">{currentPlan.title}</p>
-            </div>
-            <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
-              <span className="text-[10px] font-bold uppercase text-slate-500">Alvo de Hidratos</span>
-              <p className="text-sm font-extrabold text-emerald-400 mt-0.5">{currentPlan.targetCarbs}</p>
-            </div>
-            <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
-              <span className="text-[10px] font-bold uppercase text-slate-500">Líquidos</span>
-              <p className="text-sm font-extrabold text-blue-400 mt-0.5">{currentPlan.water}</p>
-            </div>
-          </div>
-
-          <p className="text-xs text-slate-300 bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl">
-            💡 <strong>Foco Tático:</strong> {currentPlan.focus}
-          </p>
-
-          <div className="space-y-3 pt-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Refeições Recomendadas</h3>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {currentPlan.meals.map((meal, index) => (
-                <div key={index} className="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl flex items-start gap-3">
-                  <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+          <div className="grid gap-4">
+            {checkpoints.map((cp, idx) => (
+              <div key={idx} className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center font-bold text-xs text-emerald-400">
+                    {idx + 1}
+                  </div>
                   <div>
-                    <p className="text-xs font-bold text-emerald-400">{meal.time}</p>
-                    <p className="text-xs text-slate-200 mt-1">{meal.desc}</p>
+                    <p className="text-sm font-bold text-white">{cp.name}</p>
+                    <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3 h-3 text-emerald-400" /> Quilómetro {cp.km} km
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
 
-        {/* Recomendações do Treinador */}
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
-          <h2 className="text-base font-bold text-white mb-2 flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5 text-amber-400" />
-            Notas Táticas do Treinador
-          </h2>
-          <p className="text-sm text-slate-300 leading-relaxed">
-            Atenção à primeira subida aos 10km (Mizarela). Mantém o ritmo controlado e não forces a Frequência Cardíaca acima da Z3. No PAC 2 (Merujal) terás o teu dropbag pronto com eletrólitos e reforço de géis.
-          </p>
-        </div>
-
-      </div>
-    </div>
-  );
-}
+                <div className="flex items-center gap-4 text-xs">
+                  <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-400">
+                    <Flame className="w-3.5 h-3.5" />
+                    <span>Recarregar: <strong>{cp.carbs_g || 60}g Carbs</strong></span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-xl text-blue-400">
+                    <Droplet className="w-3.
