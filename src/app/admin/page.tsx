@@ -138,11 +138,16 @@ export default function AdminPage() {
           }
         }
 
+        const currentDist = Number(totalDist.toFixed(2));
+        const currentEle = Math.round(ele);
+
         parsedPoints.push({
           lat,
           lon,
-          ele: Math.round(ele),
-          dist: Number(totalDist.toFixed(2))
+          ele: currentEle,
+          elevation: currentEle,
+          dist: currentDist,
+          distanceKm: currentDist
         });
       });
 
