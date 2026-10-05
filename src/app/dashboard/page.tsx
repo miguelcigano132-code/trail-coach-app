@@ -15,7 +15,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchData() {
-      // 1. Obter utilizador atual
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push('/login');
@@ -23,18 +22,16 @@ export default function DashboardPage() {
       }
       setUser(user);
 
-      // 2. Procurar a prova mais recente criada pelo treinador no Supabase
       const { data: raceData } = await supabase
         .from('races')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (raceData) {
         setRace(raceData);
 
-        // 3. Procurar os postos de abastecimento (PACs) dessa prova
         const { data: cpData } = await supabase
           .from('checkpoints')
           .select('*')
@@ -44,7 +41,6 @@ export default function DashboardPage() {
         if (cpData && cpData.length > 0) {
           setCheckpoints(cpData);
         } else {
-          // Exemplo de fallbacks caso a prova ainda não tenha checkpoints inseridos
           const defaultDistance = raceData.distance_km || 45;
           setCheckpoints([
             { name: 'PAC 1 - Inicio Subida', km: (defaultDistance * 0.25).toFixed(1), carbs_g: 40, water_ml: 500 },
@@ -77,7 +73,6 @@ export default function DashboardPage() {
     }
   };
 
-  // Planos de Nutrição Pré-Prova
   const nutritionSchedule = {
     'D-3': {
       title: 'Início da Carga de Hidratos',
@@ -142,8 +137,6 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-10 font-sans">
       <div className="max-w-4xl mx-auto space-y-8">
-        
-        {/* Top bar */}
         <div className="flex justify-between items-center border-b border-slate-800 pb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">
@@ -171,7 +164,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* --- CARTÃO VISUAL COM A PROVA REAL DO SUPABASE --- */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-slate-800 p-6 md:p-8 shadow-2xl">
           <div className="absolute -right-10 -bottom-10 opacity-5 text-emerald-400 pointer-events-none">
             <Mountain size={280} />
@@ -208,7 +200,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* --- NOVO: PLANO ESTRATÉGICO DE POSTOS DE ABASTECIMENTO (PACs) --- */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
             <Flag className="w-5 h-5 text-emerald-400" />
@@ -231,9 +222,4 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex items-center gap-4 text-xs">
-                  <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-400">
-                    <Flame className="w-3.5 h-3.5" />
-                    <span>Recarregar: <strong>{cp.carbs_g || 60}g Carbs</strong></span>
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-xl text-blue-400">
-                    <Droplet className="w-3.
+                  <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-5
