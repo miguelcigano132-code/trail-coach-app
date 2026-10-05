@@ -63,6 +63,9 @@ export default function AdminPage() {
   const [athletes, setAthletes] = useState<any[]>([]);
   const [selectedAthleteId, setSelectedAthleteId] = useState<string>('');
 
+  // ID da prova existente (caso seja uma atualização)
+  const [editingRaceId, setEditingRaceId] = useState<string | null>(null);
+
   // Dados da Prova
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
@@ -102,6 +105,62 @@ export default function AdminPage() {
     }
     fetchAthletes();
   }, []);
+
+  // Procurar dados da prova existente ao mudar de atleta selecionado
+  useEffect(() => {
+    if (!selectedAthleteId) return;
+
+    async function loadAthleteRace() {
+      const { data: race, error } = await supabase
+        .from('races')
+        .select('*, checkpoints(*)')
+        .eq('athlete_id', selectedAthleteId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && race) {
+        setEditingRaceId(race.id);
+        setTitle(race.title || '');
+        setLocation(race.location || '');
+        setRaceDate(race.race_date || '');
+        setDistance(race.distance_km ? race.distance_km.toString() : '');
+        setElevation(race.elevation_gain_m ? race.elevation_gain_m.toString() : '');
+        setTargetCarbs(race.target_carbs || '75g');
+        setTargetHydration(race.target_hydration || '500ml (1 Flask/h)');
+        setTargetPace(race.target_pace || '6:00 min/km');
+        setCoachNotes(race.coach_notes || '');
+        if (race.gpx_data) setGpxPoints(race.gpx_data);
+
+        if (race.checkpoints && race.checkpoints.length > 0) {
+          const sortedCps = race.checkpoints
+            .sort((a: any, b: any) => a.km - b.km)
+            .map((cp: any) => ({
+              name: cp.name,
+              km: cp.km.toString(),
+              carbs_g: cp.carbs_g,
+              water_ml: cp.water_ml,
+            }));
+          setCheckpoints(sortedCps);
+        }
+      } else {
+        // Se o atleta não tiver prova associada, repõe o formulário
+        setEditingRaceId(null);
+        setTitle('');
+        setLocation('');
+        setRaceDate('');
+        setDistance('');
+        setElevation('');
+        setGpxPoints([]);
+        setCheckpoints([
+          { name: 'PAC 1 - Inicio Subida', km: '10', carbs_g: 40, water_ml: 500 },
+          { name: 'PAC 2 - Merujal (Dropbag)', km: '22', carbs_g: 75, water_ml: 1000 },
+        ]);
+      }
+    }
+
+    loadAthleteRace();
+  }, [selectedAthleteId]);
 
   const handleAddCheckpoint = () => {
     setCheckpoints([
@@ -195,50 +254,69 @@ export default function AdminPage() {
         if (storageData) gpxUrl = storageData.path;
       }
 
-      const { data: raceData, error: raceError } = await supabase
-        .from('races')
-        .insert([
-          {
-            athlete_id: selectedAthleteId || null, // Atribui a prova ao atleta selecionado
-            title,
-            location,
-            race_date: raceDate,
-            distance_km: parseFloat(distance),
-            elevation_gain_m: parseInt(elevation),
-            gpx_url: gpxUrl,
-            gpx_data: gpxPoints,
-            target_carbs: targetCarbs,
-            target_hydration: targetHydration,
-            target_pace: targetPace,
-            coach_notes: coachNotes,
-            is_public: true,
-          },
-        ])
-        .select()
-        .single();
+      const racePayload = {
+        athlete_id: selectedAthleteId || null,
+        title,
+        location,
+        race_date: raceDate,
+        distance_km: parseFloat(distance) || 0,
+        elevation_gain_m: parseInt(elevation) || 0,
+        ...(gpxUrl && { gpx_url: gpxUrl }),
+        ...(gpxPoints.length > 0 && { gpx_data: gpxPoints }),
+        target_carbs: targetCarbs,
+        target_hydration: targetHydration,
+        target_pace: targetPace,
+        coach_notes: coachNotes,
+        is_public: true,
+      };
 
-      if (raceError) throw raceError;
+      let raceData = null;
 
-      if (raceData && checkpoints.length > 0) {
-        const formattedCheckpoints = checkpoints.map((cp) => ({
-          race_id: raceData.id,
-          name: cp.name,
-          km: parseFloat(cp.km) || 0,
-          carbs_g: cp.carbs_g,
-          water_ml: cp.water_ml,
-        }));
+      if (editingRaceId) {
+        // Se a prova já existe, atualiza-a em vez de criar um duplicado
+        const { data, error } = await supabase
+          .from('races')
+          .update(racePayload)
+          .eq('id', editingRaceId)
+          .select()
+          .single();
 
-        const { error: cpError } = await supabase.from('checkpoints').insert(formattedCheckpoints);
-        if (cpError) console.error('Erro ao guardar PACs:', cpError.message);
+        if (error) throw error;
+        raceData = data;
+      } else {
+        // Se não existe, cria uma prova nova
+        const { data, error } = await supabase
+          .from('races')
+          .insert([racePayload])
+          .select()
+          .single();
+
+        if (error) throw error;
+        raceData = data;
+        setEditingRaceId(raceData.id);
+      }
+
+      // Atualiza os PACs: apaga os antigos da prova e insere os novos
+      if (raceData) {
+        await supabase.from('checkpoints').delete().eq('race_id', raceData.id);
+
+        if (checkpoints.length > 0) {
+          const formattedCheckpoints = checkpoints.map((cp) => ({
+            race_id: raceData.id,
+            name: cp.name,
+            km: parseFloat(cp.km) || 0,
+            carbs_g: cp.carbs_g,
+            water_ml: cp.water_ml,
+          }));
+
+          const { error: cpError } = await supabase.from('checkpoints').insert(formattedCheckpoints);
+          if (cpError) console.error('Erro ao guardar PACs:', cpError.message);
+        }
       }
 
       setSuccess(true);
-      setTitle('');
-      setLocation('');
-      setGpxFile(null);
-      setGpxPoints([]);
     } catch (err: any) {
-      alert(`Erro ao criar prova: ${err.message}`);
+      alert(`Erro ao criar/atualizar prova: ${err.message}`);
     } finally {
       setLoading(false);
     }
