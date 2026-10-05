@@ -5,10 +5,63 @@ import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import { User, LogOut, ShieldAlert, Utensils, Mountain, CheckCircle, Share2, MapPin, Flag, Droplet, Flame } from 'lucide-react';
 
+type TabType = 'D-3' | 'D-2' | 'D-1' | 'RACE_DAY';
+
+const NUTRITION_SCHEDULE = {
+  'D-3': {
+    title: 'Início da Carga de Hidratos',
+    targetCarbs: '6-8 g/kg',
+    water: '2.5 L',
+    focus: 'Aumentar consumo de arroz, massa, batata e aveia. Reduzir gorduras e fibras.',
+    meals: [
+      { time: 'Pequeno-almoço', desc: 'Papa de aveia com banana e mel + Sumo de laranja' },
+      { time: 'Almoço', desc: 'Peito de frango com arroz branco abundante' },
+      { time: 'Lanche', desc: 'Panquecas de aveia com compota ou mel' },
+      { time: 'Jantar', desc: 'Massa com atum ao natural e molho de tomate ligeiro' }
+    ]
+  },
+  'D-2': {
+    title: 'Saturação de Glicogénio',
+    targetCarbs: '8-10 g/kg',
+    water: '3.0 L + Eletrólitos',
+    focus: 'Dia de carga máxima. Hidratação constante com eletrólitos.',
+    meals: [
+      { time: 'Pequeno-almoço', desc: 'Pão branco com compota + 1 banana + Bebida vegetal' },
+      { time: 'Almoço', desc: 'Batata doce cozida com filete de peixe branco' },
+      { time: 'Lanche', desc: 'Batido de banana, leite de arroz e maltodextrina' },
+      { time: 'Jantar', desc: 'Arroz branco com peito de perú e azeite' }
+    ]
+  },
+  'D-1': {
+    title: 'Repouso Digestivo & Descanso',
+    targetCarbs: '8 g/kg',
+    water: '2.5 L',
+    focus: 'Comer refeições simples e de fácil absorção. Jantar cedo (máximo 19h30).',
+    meals: [
+      { time: 'Pequeno-almoço', desc: 'Pão de forma com mel + Sumo de maçã' },
+      { time: 'Almoço', desc: 'Arroz de frango simples (pouca gordura)' },
+      { time: 'Lanche', desc: 'Bolachas Maria ou gaufrettes com geleia' },
+      { time: 'Jantar (Cedo)', desc: 'Massa pevide ou arroz branco com ovo cozido' }
+    ]
+  },
+  'RACE_DAY': {
+    title: 'Estratégia do Dia da Prova',
+    targetCarbs: '75g / hora',
+    water: '600 ml / hora',
+    focus: 'Pequeno-almoço 3h antes da partida. Ingerir gel/sólido a cada 30-40 minutos.',
+    meals: [
+      { time: 'Pré-Prova (-3h)', desc: 'Pão branco com marmelada + Banana madura + Café' },
+      { time: 'Pré-Partida (-15m)', desc: '1 Gel de pré-partida + 200ml de água' },
+      { time: 'Em Prova', desc: 'Alternar entre géis de 30g de carbs e barras moles nos PACs' },
+      { time: 'Pós-Prova', desc: 'Batido de proteína + hidratos nas primeiras 30 min' }
+    ]
+  }
+};
+
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'D-3' | 'D-2' | 'D-1' | 'RACE_DAY'>('D-1');
+  const [activeTab, setActiveTab] = useState<TabType>('D-1');
   const [race, setRace] = useState<any>(null);
   const [checkpoints, setCheckpoints] = useState<any[]>([]);
   const router = useRouter();
@@ -73,57 +126,6 @@ export default function DashboardPage() {
     }
   };
 
-  const nutritionSchedule = {
-    'D-3': {
-      title: 'Início da Carga de Hidratos',
-      targetCarbs: '6-8 g/kg',
-      water: '2.5 L',
-      focus: 'Aumentar consumo de arroz, massa, batata e aveia. Reduzir gorduras e fibras.',
-      meals: [
-        { time: 'Pequeno-almoço', desc: 'Papa de aveia com banana e mel + Sumo de laranja' },
-        { time: 'Almoço', desc: 'Peito de frango com arroz branco abundante' },
-        { time: 'Lanche', desc: 'Panquecas de aveia com compota ou mel' },
-        { time: 'Jantar', desc: 'Massa com atum ao natural e molho de tomate ligeiro' }
-      ]
-    },
-    'D-2': {
-      title: 'Saturação de Glicogénio',
-      targetCarbs: '8-10 g/kg',
-      water: '3.0 L + Eletrólitos',
-      focus: 'Dia de carga máxima. Hidratação constante com eletrólitos.',
-      meals: [
-        { time: 'Pequeno-almoço', desc: 'Pão branco com compota + 1 banana + Bebida vegetal' },
-        { time: 'Almoço', desc: 'Batata doce cozida com filete de peixe branco' },
-        { time: 'Lanche', desc: 'Batido de banana, leite de arroz e maltodextrina' },
-        { time: 'Jantar', desc: 'Arroz branco com peito de perú e azeite' }
-      ]
-    },
-    'D-1': {
-      title: 'Repouso Digestivo & Descanso',
-      targetCarbs: '8 g/kg',
-      water: '2.5 L',
-      focus: 'Comer refeições simples e de fácil absorção. Jantar cedo (máximo 19h30).',
-      meals: [
-        { time: 'Pequeno-almoço', desc: 'Pão de forma com mel + Sumo de maçã' },
-        { time: 'Almoço', desc: 'Arroz de frango simples (pouca gordura)' },
-        { time: 'Lanche', desc: 'Bolachas Maria ou gaufrettes com geleia' },
-        { time: 'Jantar (Cedo)', desc: 'Massa pevide ou arroz branco com ovo cozido' }
-      ]
-    },
-    'RACE_DAY': {
-      title: 'Estratégia do Dia da Prova',
-      targetCarbs: '75g / hora',
-      water: '600 ml / hora',
-      focus: 'Pequeno-almoço 3h antes da partida. Ingerir gel/sólido a cada 30-40 minutos.',
-      meals: [
-        { time: 'Pré-Prova (-3h)', desc: 'Pão branco com marmelada + Banana madura + Café' },
-        { time: 'Pré-Partida (-15m)', desc: '1 Gel de pré-partida + 200ml de água' },
-        { time: 'Em Prova', desc: 'Alternar entre géis de 30g de carbs e barras moles nos PACs' },
-        { time: 'Pós-Prova', desc: 'Batido de proteína + hidratos nas primeiras 30 min' }
-      ]
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 text-sm">
@@ -132,11 +134,12 @@ export default function DashboardPage() {
     );
   }
 
-  const currentPlan = nutritionSchedule[activeTab];
+  const currentPlan = NUTRITION_SCHEDULE[activeTab];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-10 font-sans">
       <div className="max-w-4xl mx-auto space-y-8">
+        
         <div className="flex justify-between items-center border-b border-slate-800 pb-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold">
@@ -222,4 +225,30 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex items-center gap-4 text-xs">
-                  <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-5
+                  <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-400">
+                    <Flame className="w-3.5 h-3.5" />
+                    <span>Recarregar: <strong>{cp.carbs_g || 60}g Carbs</strong></span>
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-xl text-blue-400">
+                    <Droplet className="w-3.5 h-3.5" />
+                    <span>Bidões: <strong>{cp.water_ml || 500}ml</strong></span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div className="flex items-center gap-2">
+              <Utensils className="w-5 h-5 text-emerald-400" />
+              <h2 className="text-lg font-bold text-white">Plano de Nutrição Pré-Prova</h2>
+            </div>
+
+            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+              {(['D-3', 'D-2', 'D-1', 'RACE_DAY'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-3 py-
