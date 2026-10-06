@@ -89,8 +89,8 @@ export default function DashboardPage() {
       }
       setUser(user);
 
-      // Procura a prova atribuída ao atleta autenticado
-      const { data: raceData } = await supabase
+      // 1. Tentar procurar a prova atribuída ao atleta autenticado
+      let { data: raceData } = await supabase
         .from('races')
         .select('id, title, location, distance_km, elevation_gain_m, race_date, gpx_data, target_carbs, target_hydration, target_pace, coach_notes, created_at')
         .eq('athlete_id', user.id)
@@ -98,9 +98,22 @@ export default function DashboardPage() {
         .limit(1)
         .maybeSingle();
 
+      // Se o atleta ainda não tiver prova atribuída explicitamente, carrega a prova mais recente criada
+      if (!raceData) {
+        const { data: latestRace } = await supabase
+          .from('races')
+          .select('id, title, location, distance_km, elevation_gain_m, race_date, gpx_data, target_carbs, target_hydration, target_pace, coach_notes, created_at')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        raceData = latestRace;
+      }
+
       if (raceData) {
         setRace(raceData);
 
+        // 2. Carregar os checkpoints associados ao ID da prova encontrada
         const { data: cpData } = await supabase
           .from('checkpoints')
           .select('*')
@@ -133,6 +146,14 @@ export default function DashboardPage() {
       navigator.clipboard.writeText(window.location.href);
       alert('Link copiado para a área de transferência!');
     }
+  };
+
+  // Função para formatar a data da prova em segurança
+  const formatRaceDate = (dateString?: string) => {
+    if (!dateString) return 'A definir';
+    const parsedDate = new Date(dateString);
+    if (isNaN(parsedDate.getTime())) return 'A definir';
+    return parsedDate.toLocaleDateString('pt-PT');
   };
 
   if (loading) {
@@ -190,13 +211,13 @@ export default function DashboardPage() {
               </div>
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
-                  {race ? race.location || 'Prova Ativa' : 'Sem Prova Registada'}
+                  {race ? race.location || 'PROVA ATIVA' : 'Sem Prova Registada'}
                 </span>
                 <h2 className="text-2xl font-black text-white mt-1">
                   {race ? `${race.title} (${race.distance_km}K)` : 'Nenhuma prova atribuída'}
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Desnível: {race?.elevation_gain_m || 0}m D+ • Data: {race?.race_date || 'A definir'}
+                  Desnível: {race?.elevation_gain_m || 0}m D+ • Data: {formatRaceDate(race?.race_date)}
                 </p>
               </div>
             </div>
@@ -237,7 +258,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Abastecimentos */}
+        {/* Abastecimentos (PACs) */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
             <Flag className="w-5 h-5 text-emerald-400" />
@@ -259,7 +280,7 @@ export default function DashboardPage() {
                       <div>
                         <p className="text-sm font-bold text-white">{cp.name}</p>
                         <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                          <MapPin className="w-3 h-3 text-emerald-400" /> Quilómetro {cp.km} km
+                          <MapPin className="w-3 h-3 text-emerald-400" /> Quilómetro {typeof cp.km === 'number' ? cp.km.toFixed(1) : cp.km} km
                         </p>
                       </div>
                     </div>
@@ -352,7 +373,7 @@ export default function DashboardPage() {
             Notas Táticas do Treinador
           </h2>
           <p className="text-sm text-slate-300 leading-relaxed">
-            {race?.coach_notes || 'Atenção à primeira subida. Mantém o ritmo controlled e cumpre o plano de nutrição e hidratação estabelecido.'}
+            {race?.coach_notes || 'Atenção à primeira subida. Mantém o ritmo controlado e cumpre o plano de nutrição e hidratação estabelecido.'}
           </p>
         </div>
 
