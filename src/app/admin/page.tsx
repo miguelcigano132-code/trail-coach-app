@@ -12,7 +12,7 @@ import {
   Upload,
   Activity,
   Flag,
-  Calendar
+  Trash2
 } from 'lucide-react';
 import ElevationProfile from '@/components/ElevationProfile';
 
@@ -73,6 +73,9 @@ export default function AdminPage() {
       if (racesData && racesData.length > 0) {
         setRaces(racesData);
         setSelectedRaceId(racesData[0].id);
+      } else {
+        setRaces([]);
+        setSelectedRaceId('');
       }
 
       const { data: athletesData } = await supabase.from('profiles').select('*');
@@ -84,6 +87,34 @@ export default function AdminPage() {
       console.error('Erro ao carregar dados:', err);
     }
   }
+
+  // Função para apagar prova
+  const handleDeleteRace = async (raceId: string, raceTitle: string) => {
+    const confirmDelete = window.confirm(`Tem a certeza de que pretende eliminar a prova "${raceTitle}"?`);
+    if (!confirmDelete) return;
+
+    setLoading(true);
+    try {
+      // 1. Eliminar postos de abastecimento associados (se existirem)
+      await supabase.from('checkpoints').delete().eq('race_id', raceId);
+
+      // 2. Eliminar a prova na tabela "races"
+      const { error } = await supabase
+        .from('races')
+        .delete()
+        .eq('id', raceId);
+
+      if (error) throw error;
+
+      showNotification(`Prova "${raceTitle}" eliminada com sucesso!`);
+      fetchInitialData();
+    } catch (err: any) {
+      console.error('Erro ao apagar prova:', err);
+      alert('Erro ao eliminar a prova: ' + err.message);
+    } font-sans {
+      setLoading(false);
+    }
+  };
 
   // Função para calcular distância entre coordenadas (Fórmula Haversine em km)
   const calcDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -354,136 +385,176 @@ export default function AdminPage() {
 
         {/* ABA 1: CRIAR PROVA & GPX */}
         {activeTab === 'create' && (
-          <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
-            <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <PlusCircle className="w-4 h-4 text-emerald-400" />
-              Criar Nova Prova & Carregar Ficheiro GPX
-            </h2>
+          <div className="space-y-6">
+            
+            {/* Lista de Provas Existentes para Eliminação */}
+            {races.length > 0 && (
+              <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 space-y-4 shadow-2xl">
+                <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                  <Mountain className="w-4 h-4 text-emerald-400" />
+                  Provas Registadas ({races.length})
+                </h2>
 
-            <form onSubmit={handleCreateRace} className="space-y-6">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                  Carregar Ficheiro GPX da Prova
-                </label>
-                <label className="border-2 border-dashed border-slate-800 hover:border-emerald-500/50 bg-[#050914] transition-all rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer text-center">
-                  <input
-                    type="file"
-                    accept=".gpx"
-                    onChange={handleGpxUpload}
-                    className="hidden"
-                  />
-                  <Upload className="w-7 h-7 text-emerald-400 mb-2" />
-                  <p className="text-xs font-bold text-slate-300">
-                    {gpxFileName ? `Ficheiro GPX: ${gpxFileName}` : 'Clica para selecionar o ficheiro GPX'}
-                  </p>
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Nome da Prova
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Trail Sao Joao"
-                    value={newRaceTitle}
-                    onChange={(e) => setNewRaceTitle(e.target.value)}
-                    className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">
-                    Data da Prova
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={newRaceDate}
-                    onChange={(e) => setNewRaceDate(e.target.value)}
-                    className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 scheme-dark"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Distância Total (KM)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    required
-                    placeholder="Ex: 32.1"
-                    value={newRaceDistance}
-                    onChange={(e) => setNewRaceDistance(e.target.value)}
-                    className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                    Desnível Acumulado (m D+)
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="Ex: 1800"
-                    value={newRaceElevation}
-                    onChange={(e) => setNewRaceElevation(e.target.value)}
-                    className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-
-              {gpxData.length > 0 && (
-                <div className="space-y-3 bg-[#050914] p-4 rounded-2xl border border-slate-800">
-                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                    <Activity className="w-4 h-4" /> Perfil Altimétrico
-                  </div>
-                  <ElevationProfile points={gpxData} />
-                </div>
-              )}
-
-              {/* Lista dos PACs extraídos diretamente do GPX */}
-              {checkpoints.length > 0 ? (
-                <div className="space-y-3 bg-[#050914] p-4 rounded-2xl border border-slate-800">
-                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                    <Flag className="w-4 h-4" /> Postos de Abastecimento do GPX ({checkpoints.length})
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {checkpoints.map((cp, idx) => (
-                      <div key={idx} className="bg-[#0a1122] border border-slate-800 p-3 rounded-xl flex justify-between items-center text-xs">
-                        <div>
-                          <p className="font-bold text-white">{cp.name}</p>
-                          <p className="text-[10px] text-slate-400">Km {cp.km} km</p>
-                        </div>
-                        <span className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg font-mono">
-                          {cp.carbs_g}g / {cp.water_ml}ml
-                        </span>
+                <div className="grid gap-3">
+                  {races.map((race) => (
+                    <div 
+                      key={race.id} 
+                      className="bg-[#050914] border border-slate-800/80 p-4 rounded-2xl flex items-center justify-between hover:border-slate-700 transition-all"
+                    >
+                      <div>
+                        <p className="font-bold text-white text-sm">{race.title}</p>
+                        <p className="text-xs text-slate-400">
+                          Data: {race.race_date || 'N/A'} | Distância: {race.distance_km} KM | D+: {race.elevation_gain_m}m
+                        </p>
                       </div>
-                    ))}
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteRace(race.id, race.title)}
+                        className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 p-2.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold"
+                        title="Apagar Prova"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span className="hidden sm:inline">Eliminar</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Form de Criação */}
+            <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                <PlusCircle className="w-4 h-4 text-emerald-400" />
+                Criar Nova Prova & Carregar Ficheiro GPX
+              </h2>
+
+              <form onSubmit={handleCreateRace} className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    Carregar Ficheiro GPX da Prova
+                  </label>
+                  <label className="border-2 border-dashed border-slate-800 hover:border-emerald-500/50 bg-[#050914] transition-all rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer text-center">
+                    <input
+                      type="file"
+                      accept=".gpx"
+                      onChange={handleGpxUpload}
+                      className="hidden"
+                    />
+                    <Upload className="w-7 h-7 text-emerald-400 mb-2" />
+                    <p className="text-xs font-bold text-slate-300">
+                      {gpxFileName ? `Ficheiro GPX: ${gpxFileName}` : 'Clica para selecionar o ficheiro GPX'}
+                    </p>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                      Nome da Prova
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Trail Sao Joao"
+                      value={newRaceTitle}
+                      onChange={(e) => setNewRaceTitle(e.target.value)}
+                      className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">
+                      Data da Prova
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={newRaceDate}
+                      onChange={(e) => setNewRaceDate(e.target.value)}
+                      className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500 scheme-dark"
+                    />
                   </div>
                 </div>
-              ) : (
-                gpxFileName && (
-                  <p className="text-xs text-slate-500 italic text-center">
-                    Nenhum waypoint (&lt;wpt&gt;) de abastecimento detetado no ficheiro GPX.
-                  </p>
-                )
-              )}
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl text-sm transition-all shadow-lg disabled:opacity-50 mt-4"
-              >
-                {loading ? 'A Guardar Prova...' : 'Criar Prova'}
-              </button>
-            </form>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                      Distância Total (KM)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      required
+                      placeholder="Ex: 32.1"
+                      value={newRaceDistance}
+                      onChange={(e) => setNewRaceDistance(e.target.value)}
+                      className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                      Desnível Acumulado (m D+)
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="Ex: 1800"
+                      value={newRaceElevation}
+                      onChange={(e) => setNewRaceElevation(e.target.value)}
+                      className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {gpxData.length > 0 && (
+                  <div className="space-y-3 bg-[#050914] p-4 rounded-2xl border border-slate-800">
+                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                      <Activity className="w-4 h-4" /> Perfil Altimétrico
+                    </div>
+                    <ElevationProfile points={gpxData} />
+                  </div>
+                )}
+
+                {/* Lista dos PACs extraídos diretamente do GPX */}
+                {checkpoints.length > 0 ? (
+                  <div className="space-y-3 bg-[#050914] p-4 rounded-2xl border border-slate-800">
+                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                      <Flag className="w-4 h-4" /> Postos de Abastecimento do GPX ({checkpoints.length})
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {checkpoints.map((cp, idx) => (
+                        <div key={idx} className="bg-[#0a1122] border border-slate-800 p-3 rounded-xl flex justify-between items-center text-xs">
+                          <div>
+                            <p className="font-bold text-white">{cp.name}</p>
+                            <p className="text-[10px] text-slate-400">Km {cp.km} km</p>
+                          </div>
+                          <span className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg font-mono">
+                            {cp.carbs_g}g / {cp.water_ml}ml
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  gpxFileName && (
+                    <p className="text-xs text-slate-500 italic text-center">
+                      Nenhum waypoint (&lt;wpt&gt;) de abastecimento detetado no ficheiro GPX.
+                    </p>
+                  )
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl text-sm transition-all shadow-lg disabled:opacity-50 mt-4"
+                >
+                  {loading ? 'A Guardar Prova...' : 'Criar Prova'}
+                </button>
+              </form>
+            </div>
           </div>
         )}
 
