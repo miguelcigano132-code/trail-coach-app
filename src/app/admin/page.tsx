@@ -187,6 +187,7 @@ export default function AdminPage() {
         setNewRaceTitle(file.name.replace(/\.gpx$/i, '').replace(/_/g, ' '));
       }
 
+      // 1. Procurar em Waypoints (<wpt>)
       const wpts = Array.from(xmlDoc.querySelectorAll('wpt'));
       const extractedCheckpoints: AutoCheckpoint[] = [];
 
@@ -214,8 +215,30 @@ export default function AdminPage() {
         });
       });
 
+      // 2. Se não encontrou em <wpt>, procurar por pontos com nome no próprio percurso (<trkpt><name>)
+      if (extractedCheckpoints.length === 0) {
+        trkpts.forEach((pt, index) => {
+          const ptName = pt.querySelector('name')?.textContent?.trim();
+          if (ptName && (ptName.toLowerCase().includes('pac') || ptName.toLowerCase().includes('abast') || ptName.toLowerCase().includes('cp'))) {
+            extractedCheckpoints.push({
+              name: ptName,
+              km: parsedPoints[index]?.dist || 0,
+              carbs_g: 60,
+              water_ml: 500
+            });
+          }
+        });
+      }
+
+      // Ordenar os PACs por quilómetro
       extractedCheckpoints.sort((a, b) => a.km - b.km);
       setCheckpoints(extractedCheckpoints);
+
+      if (extractedCheckpoints.length === 0) {
+        showNotification('GPX carregado! Este ficheiro não contém marcas de PACs gravadas.');
+      } else {
+        showNotification(`GPX carregado! Foram encontrados ${extractedCheckpoints.length} Pontos de Abastecimento.`);
+      }
 
     } catch (err) {
       console.error('Erro ao processar ficheiro GPX:', err);
