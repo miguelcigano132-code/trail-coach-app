@@ -78,42 +78,60 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<TabType>('D-1');
   const [race, setRace] = useState<any>(null);
+  const [athletePlan, setAthletePlan] = useState<any>(null);
   const router = useRouter();
 
   useEffect(() => {
     async function fetchData() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      setUser(user);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          router.push('/login');
+          return;
+        }
+        setUser(user);
 
-      // 1. Tentar procurar a prova atribuída ao atleta autenticado
-      let { data: raceData } = await supabase
-        .from('races')
-        .select('id, title, location, distance_km, elevation_gain_m, race_date, gpx_data, target_carbs, target_hydration, target_pace, coach_notes, created_at')
-        .eq('athlete_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      // Se o atleta ainda não tiver prova atribuída explicitamente, carrega a prova mais recente criada
-      if (!raceData) {
-        const { data: latestRace } = await supabase
+        // 1. Procurar a prova atribuída ao atleta
+        let { data: raceData } = await supabase
           .from('races')
-          .select('id, title, location, distance_km, elevation_gain_m, race_date, gpx_data, target_carbs, target_hydration, target_pace, coach_notes, created_at')
+          .select('*')
+          .eq('athlete_id', user.id)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        
-        raceData = latestRace;
-      }
 
-      if (raceData) {
-        setRace(raceData);
+        // Se o atleta não tiver prova atribuída explicitamente, carrega a última criadas
+        if (!raceData) {
+          const { data: latestRace } = await supabase
+            .from('races')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          raceData = latestRace;
+        }
+
+        if (raceData) {
+          setRace(raceData);
+
+          // 2. Procurar o plano personalizado do atleta para esta prova
+          const { data: planData } = await supabase
+            .from('athlete_race_plans')
+            .select('*')
+            .eq('race_id', raceData.id)
+            .eq('athlete_id', user.id)
+            .maybeSingle();
+
+          if (planData) {
+            setAthletePlan(planData);
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao carregar dados do dashboard:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
 
     fetchData();
@@ -137,7 +155,6 @@ export default function DashboardPage() {
     }
   };
 
-  // Função para formatar a data da prova em segurança
   const formatRaceDate = (dateString?: string) => {
     if (!dateString) return 'A definir';
     const parsedDate = new Date(dateString);
@@ -154,6 +171,28 @@ export default function DashboardPage() {
   }
 
   const currentPlan = NUTRITION_SCHEDULE[activeTab];
+
+  // Cálculo e seleção dos valores reais (Prioridade: Plano do Atleta -> Tabela Race -> Valor por omissão)
+  const dynamicCarbs = athletePlan?.carbs_per_hour || race?.target_carbs || '75g';
+  const dynamicHydration = athletePlan?.fluid_per_hour_ml ? `${athletePlan.fluid_per_hour_ml}ml` : (race?.target_hydration || '600ml');
+  const dynamicPaceStr = athletePlan?.target_pace || race?.target_pace || null;
+  
+  // Converter o ritmo (ex: "6:30" ou 6.5) para número flutuante de minutos por km para o componente AthleteRacePlan
+  const parsePaceToNumber = (paceVal: any): number => {
+    if (!paceVal) return 6.0; // Padrão
+    if (typeof paceVal === 'number') return paceVal;
+    if (typeof paceVal === 'string') {
+      if (paceVal.includes(':')) {
+        const [m, s] = paceVal.split(':').map(Number);
+        return (m || 0) + (s || 0) / 60;
+      }
+      const num = parseFloat(paceVal);
+      return isNaN(num) ? 6.0 : num;
+    }
+    return 6.0;
+  };
+
+  const currentPaceNumeric = parsePaceToNumber(dynamicPaceStr);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-10 font-sans">
@@ -215,21 +254,21 @@ export default function DashboardPage() {
               <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
                 <p className="text-[10px] font-bold text-slate-500 uppercase">Carbs/Hora</p>
                 <p className="text-lg font-black text-emerald-400">
-                  {race?.target_carbs || '75g'}
+                  {dynamicCarbs}
                 </p>
               </div>
 
               <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
                 <p className="text-[10px] font-bold text-slate-500 uppercase">Hidratação</p>
                 <p className="text-lg font-black text-blue-400">
-                  {race?.target_hydration || '600ml'}
+                  {dynamicHydration}
                 </p>
               </div>
 
-              {race?.target_pace && (
+              {dynamicPaceStr && (
                 <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
                   <p className="text-[10px] font-bold text-slate-500 uppercase">Ritmo Alvo</p>
-                  <p className="text-lg font-black text-amber-400">{race.target_pace}</p>
+                  <p className="text-lg font-black text-amber-400">{dynamicPaceStr} <span className="text-[10px] font-normal text-slate-500">m/km</span></p>
                 </div>
               )}
             </div>
@@ -247,10 +286,10 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Componente Dinâmico de Postos de Abastecimento & Plano de Ação */}
+        {/* Componente Dinâmico de Postos de Abastecimento com Ritmo Real do Atleta */}
         {race?.id ? (
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl">
-            <AthleteRacePlan raceId={race.id} athletePaceMinPerKm={6.0} />
+            <AthleteRacePlan raceId={race.id} athletePaceMinPerKm={currentPaceNumeric} />
           </div>
         ) : (
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center text-slate-400 text-xs italic">
@@ -325,7 +364,7 @@ export default function DashboardPage() {
             Notas Táticas do Treinador
           </h2>
           <p className="text-sm text-slate-300 leading-relaxed">
-            {race?.coach_notes || 'Atenção à primeira subida. Mantém o ritmo controlado e cumpre o plano de nutrição e hidratação estabelecido.'}
+            {athletePlan?.coach_notes || race?.coach_notes || 'Atenção à primeira subida. Mantém o ritmo controlado e cumpre o plano de nutrição e hidratação estabelecido.'}
           </p>
         </div>
 
