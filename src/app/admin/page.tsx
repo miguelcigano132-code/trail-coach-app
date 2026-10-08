@@ -192,10 +192,12 @@ export default function AdminPage() {
         setNewRaceTitle(file.name.replace(/\.gpx$/i, '').replace(/_/g, ' '));
       }
 
-      // --- EXTRAÇÃO UNIVERSAL DE PACS (wpt, rtept, trkpt com name/cmt/sym) ---
+      // --- EXTRAÇÃO REFINADA DE PACS ---
       const extractedCheckpoints: AutoCheckpoint[] = [];
 
-      // Helper para calcular o KM mais próximo no percurso
+      // Palavras-chave válidas para identificar um abastecimento real
+      const pacKeywords = ['pac', 'abast', 'cp', 'alimenta', 'hidrata', 'agua', 'água', 'za', 'ponto', 'checkpoint', 'refresco'];
+
       const findKmForCoords = (lat: number, lon: number) => {
         let minDistance = Infinity;
         let matchedKm = 0;
@@ -209,51 +211,66 @@ export default function AdminPage() {
         return matchedKm;
       };
 
-      // 1. Procurar em Waypoints (<wpt>) e Route Points (<rtept>)
+      // 1. Procurar primeiro em Waypoints explicitamente marcados (<wpt> e <rtept>)
       const pointNodes = Array.from(xmlDoc.querySelectorAll('wpt, rtept'));
       pointNodes.forEach((node, index) => {
         const lat = parseFloat(node.getAttribute('lat') || '0');
         const lon = parseFloat(node.getAttribute('lon') || '0');
         const name = node.querySelector('name')?.textContent?.trim() || 
                      node.querySelector('cmt')?.textContent?.trim() || 
-                     node.querySelector('desc')?.textContent?.trim() || 
-                     `PAC ${index + 1}`;
+                     node.querySelector('desc')?.textContent?.trim() || '';
 
         const matchedKm = findKmForCoords(lat, lon);
+        const displayName = name || `PAC ${index + 1}`;
+
         extractedCheckpoints.push({
-          name,
+          name: displayName,
           km: matchedKm,
           carbs_g: 60,
           water_ml: 500
         });
       });
 
-      // 2. Se não encontrou em <wpt>/<rtept>, varrer todos os <trkpt> por marcas de nome
+      // 2. Se não encontrou em <wpt>, procurar em <trkpt> apenas se contiver palavras-chave explícitas
       if (extractedCheckpoints.length === 0) {
         trkpts.forEach((pt, index) => {
           const ptName = pt.querySelector('name')?.textContent?.trim() ||
                          pt.querySelector('cmt')?.textContent?.trim() ||
-                         pt.querySelector('sym')?.textContent?.trim();
-          
-          if (ptName && ptName.length > 0) {
-            extractedCheckpoints.push({
-              name: ptName,
-              km: parsedPoints[index]?.dist || 0,
-              carbs_g: 60,
-              water_ml: 500
-            });
+                         pt.querySelector('sym')?.textContent?.trim() || '';
+
+          if (ptName) {
+            const lowerName = ptName.toLowerCase();
+            const isPac = pacKeywords.some((keyword) => lowerName.includes(keyword));
+
+            if (isPac) {
+              extractedCheckpoints.push({
+                name: ptName,
+                km: parsedPoints[index]?.dist || 0,
+                carbs_g: 60,
+                water_ml: 500
+              });
+            }
           }
         });
       }
 
-      // Ordenar os PACs por ordem cronológica de quilómetro
+      // 3. Ordenar por KM e eliminar duplicados (PACs a menos de 1km de distância)
       extractedCheckpoints.sort((a, b) => a.km - b.km);
-      setCheckpoints(extractedCheckpoints);
 
-      if (extractedCheckpoints.length === 0) {
-        showNotification('GPX carregado! Podes adicionar os PACs manualmente em baixo.');
+      const filteredCheckpoints: AutoCheckpoint[] = [];
+      extractedCheckpoints.forEach((cp) => {
+        const existsClose = filteredCheckpoints.some((existing) => Math.abs(existing.km - cp.km) < 1.0);
+        if (!existsClose) {
+          filteredCheckpoints.push(cp);
+        }
+      });
+
+      setCheckpoints(filteredCheckpoints);
+
+      if (filteredCheckpoints.length === 0) {
+        showNotification('GPX carregado! Não foram detetados PACs automáticos (podes adicionar manualmente).');
       } else {
-        showNotification(`GPX carregado com ${extractedCheckpoints.length} Pontos de Abastecimento!`);
+        showNotification(`GPX carregado! Foram identificados ${filteredCheckpoints.length} Pontos de Abastecimento.`);
       }
 
     } catch (err) {
