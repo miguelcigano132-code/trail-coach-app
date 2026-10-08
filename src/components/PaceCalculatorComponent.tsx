@@ -1,33 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
-import { 
-  Calculator, 
-  Heart, 
-  Timer, 
-  Activity, 
-  TrendingUp, 
-  TrendingDown 
-} from 'lucide-react';
-import { 
-  calculateGAP, 
-  formatPace, 
-  parsePaceToSeconds, 
-  calculateHrZones 
-} from '@/lib/paceCalculator';
+import React, { useState, useEffect } from 'react';
+import { Calculator, Heart, Timer, Activity, TrendingUp, TrendingDown } from 'lucide-react';
+import { calculateGAP, formatPace, parsePaceToSeconds, calculateHrZones } from '@/lib/paceCalculator';
 
-export default function PaceCalculatorComponent() {
-  const [flatPace, setFlatPace] = useState('05:00');
-  const [fcMax, setFcMax] = useState(185);
-  const [lthr, setLthr] = useState(168);
-  const [slope, setSlope] = useState(10); // 10% de inclinação padrão para simulação
+interface PaceCalculatorProps {
+  initialFlatPace?: string;
+  initialFcMax?: number;
+  initialLthr?: number;
+}
+
+export default function PaceCalculatorComponent({
+  initialFlatPace = '05:00',
+  initialFcMax = 185,
+  initialLthr = 168,
+}: PaceCalculatorProps) {
+  const [flatPace, setFlatPace] = useState(initialFlatPace);
+  const [fcMax, setFcMax] = useState(initialFcMax);
+  const [lthr, setLthr] = useState(initialLthr);
+  const [slope, setSlope] = useState(10);
+
+  // Sincroniza o estado interno sempre que novos valores forem lidos do ficheiro
+  useEffect(() => {
+    if (initialFlatPace) setFlatPace(initialFlatPace);
+    if (initialFcMax) setFcMax(initialFcMax);
+    if (initialLthr) setLthr(initialLthr);
+  }, [initialFlatPace, initialFcMax, initialLthr]);
 
   const flatPaceSec = parsePaceToSeconds(flatPace);
   const gapPaceSec = calculateGAP(flatPaceSec, slope);
   const hrZones = calculateHrZones(fcMax, lthr);
 
   return (
-    <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
+    <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl mt-6">
       <div className="flex items-center gap-3 pb-4 border-b border-slate-800/60">
         <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
           <Calculator className="w-6 h-6" />
@@ -43,7 +48,6 @@ export default function PaceCalculatorComponent() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Input Ritmo em Plano */}
         <div className="bg-[#050914] p-4 rounded-2xl border border-slate-800 space-y-2">
           <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
             <Timer className="w-3.5 h-3.5 text-emerald-400" />
@@ -58,7 +62,6 @@ export default function PaceCalculatorComponent() {
           />
         </div>
 
-        {/* Input FC Máxima */}
         <div className="bg-[#050914] p-4 rounded-2xl border border-slate-800 space-y-2">
           <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
             <Heart className="w-3.5 h-3.5 text-red-400" />
@@ -72,7 +75,6 @@ export default function PaceCalculatorComponent() {
           />
         </div>
 
-        {/* Input Limiar (LTHR) */}
         <div className="bg-[#050914] p-4 rounded-2xl border border-slate-800 space-y-2">
           <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
@@ -87,7 +89,6 @@ export default function PaceCalculatorComponent() {
         </div>
       </div>
 
-      {/* Simulador GAP por Inclinação */}
       <div className="bg-[#050914] p-5 rounded-2xl border border-slate-800 space-y-4">
         <div className="flex justify-between items-center">
           <label className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-2">
@@ -109,13 +110,12 @@ export default function PaceCalculatorComponent() {
         />
 
         <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-          <span className="flex items-center gap-1"><TrendingDown className="w-3 h-3 text-emerald-400" /> Descida Técnica (-20%)</span>
+          <span className="flex items-center gap-1"><TrendingDown className="w-3 h-3 text-emerald-400" /> Descida (-20%)</span>
           <span>Plano (0%)</span>
-          <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3 text-red-400" /> Subida Íngreme (+30%)</span>
+          <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3 text-red-400" /> Subida (+30%)</span>
         </div>
       </div>
 
-      {/* Tabela de Zonas de Intensidade */}
       <div className="space-y-3">
         <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-2">
           <Heart className="w-4 h-4 text-red-400" />
