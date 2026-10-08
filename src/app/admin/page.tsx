@@ -576,4 +576,105 @@ export default function AdminPage() {
                   onChange={(e) => setSelectedRaceId(e.target.value)}
                   className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
                 >
-                  {races.map((r)
+                  {races.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.title} ({r.distance_km}K)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  2. Selecionar Atleta
+                </label>
+                <select
+                  value={selectedAthleteId}
+                  onChange={(e) => setSelectedAthleteId(e.target.value)}
+                  className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
+                >
+                  {athletes.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.email || a.full_name || 'Atleta'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Modo de Configuração de Métricas
+              </label>
+              <div className="grid grid-cols-2 gap-3 p-1.5 bg-[#050914] rounded-2xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setMode('manual')}
+                  className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    mode === 'manual'
+                      ? 'bg-slate-800 text-emerald-400 border border-slate-700'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" /> Entrada Manual de Valores
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMode('trainingpeaks')}
+                  className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    mode === 'trainingpeaks'
+                      ? 'bg-slate-800 text-emerald-400 border border-emerald-500/40'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <FileUp className="w-4 h-4" /> Importar Ficheiro TrainingPeaks
+                </button>
+              </div>
+            </div>
+
+            {mode === 'trainingpeaks' && (
+              <label className="border-2 border-dashed border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-500/5 hover:bg-emerald-500/10 transition-all rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer text-center group">
+                <input
+                  type="file"
+                  accept=".csv,.json,.fit,.gz"
+                  onChange={handleTpFileUpload}
+                  className="hidden"
+                />
+                <FileUp className="w-8 h-8 text-emerald-400 mb-2 group-hover:scale-110 transition-transform" />
+                <p className="text-xs font-black uppercase tracking-wider text-emerald-400">
+                  Carregar Ficheiro do TrainingPeaks (.CSV / .JSON / .FIT / .GZ)
+                </p>
+                <p className="text-[11px] text-slate-400 mt-2 font-mono">
+                  {tpFileName ? `Ficheiro Carregado: ${tpFileName}` : 'Clica ou arrasta um ficheiro comprimido .gz aqui'}
+                </p>
+              </label>
+            )}
+
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Notas Táticas Personalizadas do Treinador
+              </label>
+              <textarea
+                value={coachNotes}
+                onChange={(e) => setCoachNotes(e.target.value)}
+                rows={4}
+                placeholder="Instruções específicas sobre subidas, zonas de ritmo e nutrição para este atleta nesta prova..."
+                className="w-full bg-[#050914] border border-slate-800 rounded-2xl p-4 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 resize-none"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSavePlan}
+              disabled={loading}
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl text-sm transition-all shadow-lg hover:shadow-emerald-500/20 disabled:opacity-50"
+            >
+              {loading ? 'A Guardar...' : 'Guardar Plano Individual do Atleta'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
