@@ -27,10 +27,13 @@ interface GpxPoint {
   elevation: number;
 }
 
+// Interface do PAC atualizada com suporte para Flasks
 interface AutoCheckpoint {
   name: string;
   km: number;
   carbs_g: number;
+  flasks_count: number;
+  flask_vol_ml: number;
   water_ml: number;
 }
 
@@ -192,10 +195,8 @@ export default function AdminPage() {
         setNewRaceTitle(file.name.replace(/\.gpx$/i, '').replace(/_/g, ' '));
       }
 
-      // --- EXTRAÇÃO REFINADA DE PACS ---
+      // --- EXTRAÇÃO REFINADA DE PACS (Aba 1 / Alínea A) ---
       const extractedCheckpoints: AutoCheckpoint[] = [];
-
-      // Palavras-chave válidas para identificar um abastecimento real
       const pacKeywords = ['pac', 'abast', 'cp', 'alimenta', 'hidrata', 'agua', 'água', 'za', 'ponto', 'checkpoint', 'refresco'];
 
       const findKmForCoords = (lat: number, lon: number) => {
@@ -211,7 +212,7 @@ export default function AdminPage() {
         return matchedKm;
       };
 
-      // 1. Procurar primeiro em Waypoints explicitamente marcados (<wpt> e <rtept>)
+      // 1. Procurar em Waypoints (<wpt> e <rtept>)
       const pointNodes = Array.from(xmlDoc.querySelectorAll('wpt, rtept'));
       pointNodes.forEach((node, index) => {
         const lat = parseFloat(node.getAttribute('lat') || '0');
@@ -227,11 +228,13 @@ export default function AdminPage() {
           name: displayName,
           km: matchedKm,
           carbs_g: 60,
-          water_ml: 500
+          flasks_count: 2,
+          flask_vol_ml: 500,
+          water_ml: 1000
         });
       });
 
-      // 2. Se não encontrou em <wpt>, procurar em <trkpt> apenas se contiver palavras-chave explícitas
+      // 2. Procurar em <trkpt>
       if (extractedCheckpoints.length === 0) {
         trkpts.forEach((pt, index) => {
           const ptName = pt.querySelector('name')?.textContent?.trim() ||
@@ -247,14 +250,16 @@ export default function AdminPage() {
                 name: ptName,
                 km: parsedPoints[index]?.dist || 0,
                 carbs_g: 60,
-                water_ml: 500
+                flasks_count: 2,
+                flask_vol_ml: 500,
+                water_ml: 1000
               });
             }
           }
         });
       }
 
-      // 3. Ordenar por KM e eliminar duplicados (PACs a menos de 1km de distância)
+      // 3. Ordenar por KM e eliminar duplicados
       extractedCheckpoints.sort((a, b) => a.km - b.km);
 
       const filteredCheckpoints: AutoCheckpoint[] = [];
@@ -279,14 +284,16 @@ export default function AdminPage() {
     }
   };
 
-  // Adicionar PAC Manualmente
+  // Adicionar PAC Manualmente (Alínea B)
   const handleAddManualPac = () => {
     if (!manualPacName || !manualPacKm) return;
     const newCp: AutoCheckpoint = {
       name: manualPacName,
       km: Number(parseFloat(manualPacKm).toFixed(1)),
       carbs_g: 60,
-      water_ml: 500
+      flasks_count: 2,
+      flask_vol_ml: 500,
+      water_ml: 1000
     };
     const updated = [...checkpoints, newCp].sort((a, b) => a.km - b.km);
     setCheckpoints(updated);
@@ -343,6 +350,7 @@ export default function AdminPage() {
     }
   };
 
+  // Guardar Prova na BD (Alínea D)
   const handleCreateRace = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -368,7 +376,8 @@ export default function AdminPage() {
           name: cp.name,
           km: cp.km,
           carbs_g: cp.carbs_g,
-          water_ml: cp.water_ml
+          flasks_count: cp.flasks_count || 2,
+          flask_vol_ml: cp.flask_vol_ml || 500
         }));
 
         await supabase.from('checkpoints').insert(cpDataToInsert);
@@ -642,7 +651,7 @@ export default function AdminPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg font-mono">
-                              {cp.carbs_g}g / {cp.water_ml}ml
+                              {cp.carbs_g}g | {cp.flasks_count}x{cp.flask_vol_ml}ml ({cp.flasks_count * cp.flask_vol_ml}ml)
                             </span>
                             <button
                               type="button"
