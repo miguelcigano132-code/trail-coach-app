@@ -1,5 +1,6 @@
 'use client';
 
+import PaceCalculatorComponent from '@/components/PaceCalculatorComponent';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { 
