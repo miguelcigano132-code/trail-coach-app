@@ -30,12 +30,13 @@ interface GpxPoint {
 
 // Interface do PAC atualizada com suporte para Flasks
 interface AutoCheckpoint {
+  id?: string;
   name: string;
   km: number;
   carbs_g: number;
   flasks_count: number;
   flask_vol_ml: number;
-  water_ml: number;
+  water_ml?: number;
 }
 
 export default function AdminPage() {
@@ -62,6 +63,7 @@ export default function AdminPage() {
   // Campos da Aba 2 (Personalizar Atleta)
   const [selectedRaceId, setSelectedRaceId] = useState<string>('');
   const [selectedAthleteId, setSelectedAthleteId] = useState<string>('');
+  const [selectedRaceCheckpoints, setSelectedRaceCheckpoints] = useState<AutoCheckpoint[]>([]);
   const [tpFileName, setTpFileName] = useState<string>('');
   const [coachNotes, setCoachNotes] = useState<string>('');
 
@@ -78,6 +80,42 @@ export default function AdminPage() {
     fetchInitialData();
   }, []);
 
+  // Efeito para carregar os PACs da prova selecionada na Aba 2
+  useEffect(() => {
+    async function fetchRaceCheckpoints() {
+      if (!selectedRaceId) {
+        setSelectedRaceCheckpoints([]);
+        return;
+      }
+
+      try {
+        const { data: cpData, error } = await supabase
+          .from('checkpoints')
+          .select('*')
+          .eq('race_id', selectedRaceId)
+          .order('km', { ascending: true });
+
+        if (!error && cpData) {
+          setSelectedRaceCheckpoints(cpData);
+        } else {
+          setSelectedRaceCheckpoints([]);
+        }
+
+        // Carregar notas táticas existentes da prova
+        const currentRace = races.find((r) => r.id === selectedRaceId);
+        if (currentRace?.coach_notes) {
+          setCoachNotes(currentRace.coach_notes);
+        } else {
+          setCoachNotes('');
+        }
+      } catch (err) {
+        console.error('Erro ao procurar PACs da prova selecionada:', err);
+      }
+    }
+
+    fetchRaceCheckpoints();
+  }, [selectedRaceId, races]);
+
   async function fetchInitialData() {
     try {
       const { data: racesData } = await supabase
@@ -87,7 +125,9 @@ export default function AdminPage() {
 
       if (racesData && racesData.length > 0) {
         setRaces(racesData);
-        setSelectedRaceId(racesData[0].id);
+        if (!selectedRaceId) {
+          setSelectedRaceId(racesData[0].id);
+        }
       } else {
         setRaces([]);
         setSelectedRaceId('');
@@ -196,7 +236,7 @@ export default function AdminPage() {
         setNewRaceTitle(file.name.replace(/\.gpx$/i, '').replace(/_/g, ' '));
       }
 
-      // --- EXTRAÇÃO REFINADA DE PACS (Aba 1 / Alínea A) ---
+      // --- EXTRAÇÃO REFINADA DE PACS ---
       const extractedCheckpoints: AutoCheckpoint[] = [];
       const pacKeywords = ['pac', 'abast', 'cp', 'alimenta', 'hidrata', 'agua', 'água', 'za', 'ponto', 'checkpoint', 'refresco'];
 
@@ -285,7 +325,7 @@ export default function AdminPage() {
     }
   };
 
-  // Adicionar PAC Manualmente (Alínea B)
+  // Adicionar PAC Manualmente
   const handleAddManualPac = () => {
     if (!manualPacName || !manualPacKm) return;
     const newCp: AutoCheckpoint = {
@@ -351,7 +391,7 @@ export default function AdminPage() {
     }
   };
 
-  // Guardar Prova na BD (Alínea D)
+  // Guardar Prova na BD
   const handleCreateRace = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -392,7 +432,11 @@ export default function AdminPage() {
       setGpxFileName('');
       setGpxData([]);
       setCheckpoints([]);
-      fetchInitialData();
+      
+      await fetchInitialData();
+      if (insertedRace) {
+        setSelectedRaceId(insertedRace.id);
+      }
     } catch (err: any) {
       alert('Erro ao criar prova: ' + err.message);
     } finally {
@@ -415,6 +459,7 @@ export default function AdminPage() {
       if (error) throw error;
 
       showNotification('Plano do atleta guardado com sucesso!');
+      await fetchInitialData();
     } catch (err: any) {
       alert('Erro ao guardar: ' + err.message);
     } finally {
@@ -652,7 +697,7 @@ export default function AdminPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg font-mono">
-                              {cp.carbs_g}g | {cp.flasks_count}x{cp.flask_vol_ml}ml ({cp.flasks_count * cp.flask_vol_ml}ml)
+                              {cp.carbs_g}g | {cp.flasks_count || 2}x{cp.flask_vol_ml || 500}ml
                             </span>
                             <button
                               type="button"
@@ -727,6 +772,36 @@ export default function AdminPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Lista Resumo dos PACs Encontrados para esta Prova */}
+              <div className="bg-[#050914] p-4 rounded-2xl border border-slate-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <Flag className="w-4 h-4 text-emerald-400" />
+                    PACs Associados a esta Prova ({selectedRaceCheckpoints.length})
+                  </span>
+                </div>
+
+                {selectedRaceCheckpoints.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {selectedRaceCheckpoints.map((pac) => (
+                      <div key={pac.id || pac.km} className="bg-[#0a1122] p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+                        <div>
+                          <p className="font-bold text-white">{pac.name}</p>
+                          <p className="text-[10px] text-slate-400">KM {pac.km} km</p>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 font-mono">
+                          {pac.carbs_g}g | {pac.flasks_count || 2}x{pac.flask_vol_ml || 500}ml
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic text-center py-2">
+                    Nenhum PAC definido para esta prova.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-3">
