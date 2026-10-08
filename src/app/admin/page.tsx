@@ -88,29 +88,42 @@ export default function AdminPage() {
     }
   }
 
-  // Função para apagar prova
+  // Função para apagar prova com diagnóstico detalhado
   const handleDeleteRace = async (raceId: string, raceTitle: string) => {
     const confirmDelete = window.confirm(`Tem a certeza de que pretende eliminar a prova "${raceTitle}"?`);
     if (!confirmDelete) return;
 
     setLoading(true);
     try {
-      // 1. Eliminar postos de abastecimento associados (se existirem)
-      await supabase.from('checkpoints').delete().eq('race_id', raceId);
+      // 1. Eliminar postos de abastecimento associados
+      const { error: cpError } = await supabase
+        .from('checkpoints')
+        .delete()
+        .eq('race_id', raceId);
+
+      if (cpError) {
+        console.warn('Aviso/Erro nos checkpoints:', cpError.message);
+      }
 
       // 2. Eliminar a prova na tabela "races"
-      const { error } = await supabase
+      const { error: raceError } = await supabase
         .from('races')
         .delete()
         .eq('id', raceId);
 
-      if (error) throw error;
+      if (raceError) {
+        // Exibe o motivo exato (ex: restrição de foreign key)
+        throw new Error(raceError.message);
+      }
 
+      // 3. Atualizar a lista local imediatamente
+      setRaces((prevRaces) => prevRaces.filter((r) => r.id !== raceId));
+      
       showNotification(`Prova "${raceTitle}" eliminada com sucesso!`);
-      fetchInitialData();
+      await fetchInitialData();
     } catch (err: any) {
       console.error('Erro ao apagar prova:', err);
-      alert('Erro ao eliminar a prova: ' + err.message);
+      alert(`Não foi possível eliminar a prova: ${err.message}`);
     } finally {
       setLoading(false);
     }
