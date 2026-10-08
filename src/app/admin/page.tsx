@@ -17,6 +17,7 @@ import {
   Plus
 } from 'lucide-react';
 import ElevationProfile from '@/components/ElevationProfile';
+import AthleteRacePlan from '@/components/AthleteRacePlan';
 
 interface GpxPoint {
   lat: number;
@@ -799,6 +800,13 @@ export default function AdminPage() {
                 {loading ? 'A Guardar...' : 'Guardar Plano Individual do Atleta'}
               </button>
             </div>
+
+            {/* VISTA DO PLANO DE PACs E NUTRIÇÃO DO ATLETA */}
+            {selectedRaceId && (
+              <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-2xl">
+                <AthleteRacePlan raceId={selectedRaceId} athletePaceMinPerKm={6.0} />
+              </div>
+            )}
 
             <PaceCalculatorComponent 
               initialFlatPace={importedPace}
