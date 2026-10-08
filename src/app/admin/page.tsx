@@ -113,7 +113,6 @@ export default function AdminPage() {
         .eq('id', raceId);
 
       if (raceError) {
-        // Exibe o motivo exato (ex: restrição de foreign key)
         throw new Error(raceError.message);
       }
 
@@ -145,7 +144,7 @@ export default function AdminPage() {
     return R * c;
   };
 
-  // Leitura e Parsing do Ficheiro GPX (Extrai percurso e Waypoints reais)
+  // Leitura e Parsing do Ficheiro GPX
   const handleGpxUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -167,7 +166,6 @@ export default function AdminPage() {
       let totalElevationGain = 0;
       const parsedPoints: GpxPoint[] = [];
 
-      // 1. Processar pontos do trajeto (trkpt)
       trkpts.forEach((pt, index) => {
         const lat = parseFloat(pt.getAttribute('lat') || '0');
         const lon = parseFloat(pt.getAttribute('lon') || '0');
@@ -210,7 +208,6 @@ export default function AdminPage() {
         setNewRaceTitle(titleFromFilename);
       }
 
-      // 2. Extrair os Waypoints (<wpt>) georreferenciados do GPX
       const wpts = Array.from(xmlDoc.querySelectorAll('wpt'));
       const extractedCheckpoints: AutoCheckpoint[] = [];
 
@@ -220,7 +217,6 @@ export default function AdminPage() {
         const nameNode = wpt.querySelector('name');
         const wptName = nameNode?.textContent?.trim() || `PAC ${index + 1}`;
 
-        // Encontrar o ponto do trajeto (trkpt) mais próximo do waypoint para saber o KM exato
         let minDistance = Infinity;
         let matchedKm = 0;
 
@@ -240,7 +236,6 @@ export default function AdminPage() {
         });
       });
 
-      // Ordenar os postos pelo quilómetro do trajeto
       extractedCheckpoints.sort((a, b) => a.km - b.km);
       setCheckpoints(extractedCheckpoints);
 
@@ -401,7 +396,7 @@ export default function AdminPage() {
         {activeTab === 'create' && (
           <div className="space-y-6">
             
-            {/* Lista de Provas Existentes para Eliminação */}
+            {/* Lista de Provas Existentes */}
             {races.length > 0 && (
               <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 space-y-4 shadow-2xl">
                 <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
@@ -532,7 +527,6 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {/* Lista dos PACs extraídos diretamente do GPX */}
                 {checkpoints.length > 0 ? (
                   <div className="space-y-3 bg-[#050914] p-4 rounded-2xl border border-slate-800">
                     <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-wider">
@@ -574,118 +568,123 @@ export default function AdminPage() {
 
         {/* ABA 2: PERSONALIZAR ATLETA */}
         {activeTab === 'customize' && (
-          <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
-            <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-              <UserCheck className="w-4 h-4 text-emerald-400" />
-              Selecionar Prova & Personalizar Métricas do Atleta
-            </h2>
+          <div className="space-y-6">
+            <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-emerald-400" />
+                Selecionar Prova & Personalizar Métricas do Atleta
+              </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                  1. Selecionar Prova Atribuição
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    1. Selecionar Prova Atribuição
+                  </label>
+                  <select
+                    value={selectedRaceId}
+                    onChange={(e) => setSelectedRaceId(e.target.value)}
+                    className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {races.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.title} ({r.distance_km}K)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    2. Selecionar Atleta
+                  </label>
+                  <select
+                    value={selectedAthleteId}
+                    onChange={(e) => setSelectedAthleteId(e.target.value)}
+                    className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {athletes.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.email || a.full_name || 'Atleta'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Modo de Configuração de Métricas
                 </label>
-                <select
-                  value={selectedRaceId}
-                  onChange={(e) => setSelectedRaceId(e.target.value)}
-                  className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {races.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.title} ({r.distance_km}K)
-                    </option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-2 gap-3 p-1.5 bg-[#050914] rounded-2xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setMode('manual')}
+                    className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      mode === 'manual'
+                        ? 'bg-slate-800 text-emerald-400 border border-slate-700'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <SlidersHorizontal className="w-4 h-4" /> Entrada Manual de Valores
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMode('trainingpeaks')}
+                    className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                      mode === 'trainingpeaks'
+                        ? 'bg-slate-800 text-emerald-400 border border-emerald-500/40'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <FileUp className="w-4 h-4" /> Importar Ficheiro TrainingPeaks
+                  </button>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                  2. Selecionar Atleta
+              {mode === 'trainingpeaks' && (
+                <label className="border-2 border-dashed border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-500/5 hover:bg-emerald-500/10 transition-all rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer text-center group">
+                  <input
+                    type="file"
+                    accept=".csv,.json,.fit,.gz"
+                    onChange={handleTpFileUpload}
+                    className="hidden"
+                  />
+                  <FileUp className="w-8 h-8 text-emerald-400 mb-2 group-hover:scale-110 transition-transform" />
+                  <p className="text-xs font-black uppercase tracking-wider text-emerald-400">
+                    Carregar Ficheiro do TrainingPeaks (.CSV / .JSON / .FIT / .GZ)
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-2 font-mono">
+                    {tpFileName ? `Ficheiro Carregado: ${tpFileName}` : 'Clica ou arrasta um ficheiro comprimido .gz aqui'}
+                  </p>
                 </label>
-                <select
-                  value={selectedAthleteId}
-                  onChange={(e) => setSelectedAthleteId(e.target.value)}
-                  className="w-full bg-[#050914] border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {athletes.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.email || a.full_name || 'Atleta'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+              )}
 
-            <div className="space-y-3">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Modo de Configuração de Métricas
-              </label>
-              <div className="grid grid-cols-2 gap-3 p-1.5 bg-[#050914] rounded-2xl border border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setMode('manual')}
-                  className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    mode === 'manual'
-                      ? 'bg-slate-800 text-emerald-400 border border-slate-700'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <SlidersHorizontal className="w-4 h-4" /> Entrada Manual de Valores
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setMode('trainingpeaks')}
-                  className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    mode === 'trainingpeaks'
-                      ? 'bg-slate-800 text-emerald-400 border border-emerald-500/40'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <FileUp className="w-4 h-4" /> Importar Ficheiro TrainingPeaks
-                </button>
-              </div>
-            </div>
-
-            {mode === 'trainingpeaks' && (
-              <label className="border-2 border-dashed border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-500/5 hover:bg-emerald-500/10 transition-all rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer text-center group">
-                <input
-                  type="file"
-                  accept=".csv,.json,.fit,.gz"
-                  onChange={handleTpFileUpload}
-                  className="hidden"
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Notas Táticas Personalizadas do Treinador
+                </label>
+                <textarea
+                  value={coachNotes}
+                  onChange={(e) => setCoachNotes(e.target.value)}
+                  rows={4}
+                  placeholder="Instruções específicas sobre subidas, zonas de ritmo e nutrição para este atleta nesta prova..."
+                  className="w-full bg-[#050914] border border-slate-800 rounded-2xl p-4 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 resize-none"
                 />
-                <FileUp className="w-8 h-8 text-emerald-400 mb-2 group-hover:scale-110 transition-transform" />
-                <p className="text-xs font-black uppercase tracking-wider text-emerald-400">
-                  Carregar Ficheiro do TrainingPeaks (.CSV / .JSON / .FIT / .GZ)
-                </p>
-                <p className="text-[11px] text-slate-400 mt-2 font-mono">
-                  {tpFileName ? `Ficheiro Carregado: ${tpFileName}` : 'Clica ou arrasta um ficheiro comprimido .gz aqui'}
-                </p>
-              </label>
-            )}
+              </div>
 
-            <div className="space-y-2">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Notas Táticas Personalizadas do Treinador
-              </label>
-              <textarea
-                value={coachNotes}
-                onChange={(e) => setCoachNotes(e.target.value)}
-                rows={4}
-                placeholder="Instruções específicas sobre subidas, zonas de ritmo e nutrição para este atleta nesta prova..."
-                className="w-full bg-[#050914] border border-slate-800 rounded-2xl p-4 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 resize-none"
-              />
+              <button
+                type="button"
+                onClick={handleSavePlan}
+                disabled={loading}
+                className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl text-sm transition-all shadow-lg hover:shadow-emerald-500/20 disabled:opacity-50"
+              >
+                {loading ? 'A Guardar...' : 'Guardar Plano Individual do Atleta'}
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleSavePlan}
-              disabled={loading}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-4 rounded-2xl text-sm transition-all shadow-lg hover:shadow-emerald-500/20 disabled:opacity-50"
-            >
-              {loading ? 'A Guardar...' : 'Guardar Plano Individual do Atleta'}
-            </button>
+            {/* Calculadora de Ritmo GAP e Zonas de Intensidade */}
+            <PaceCalculatorComponent />
           </div>
         )}
       </div>
