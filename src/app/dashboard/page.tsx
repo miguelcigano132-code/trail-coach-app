@@ -78,7 +78,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<TabType>('D-1');
   const [race, setRace] = useState<any>(null);
-  const [athletePlan, setAthletePlan] = useState<any>(null);
+  const [racePlan, setRacePlan] = useState<any>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function DashboardPage() {
         }
         setUser(user);
 
-        // 1. Procurar a prova atribuída ao atleta
+        // 1. Procurar a prova atribuída ao atleta ou a mais recente
         let { data: raceData } = await supabase
           .from('races')
           .select('*')
@@ -100,7 +100,6 @@ export default function DashboardPage() {
           .limit(1)
           .maybeSingle();
 
-        // Se o atleta não tiver prova atribuída explicitamente, carrega a última criadas
         if (!raceData) {
           const { data: latestRace } = await supabase
             .from('races')
@@ -115,16 +114,15 @@ export default function DashboardPage() {
         if (raceData) {
           setRace(raceData);
 
-          // 2. Procurar o plano personalizado do atleta para esta prova
+          // 2. Procurar o plano correspondente na tabela race_plans
           const { data: planData } = await supabase
-            .from('athlete_race_plans')
+            .from('race_plans')
             .select('*')
             .eq('race_id', raceData.id)
-            .eq('athlete_id', user.id)
             .maybeSingle();
 
           if (planData) {
-            setAthletePlan(planData);
+            setRacePlan(planData);
           }
         }
       } catch (err) {
@@ -172,14 +170,16 @@ export default function DashboardPage() {
 
   const currentPlan = NUTRITION_SCHEDULE[activeTab];
 
-  // Cálculo e seleção dos valores reais (Prioridade: Plano do Atleta -> Tabela Race -> Valor por omissão)
-  const dynamicCarbs = athletePlan?.carbs_per_hour || race?.target_carbs || '75g';
-  const dynamicHydration = athletePlan?.fluid_per_hour_ml ? `${athletePlan.fluid_per_hour_ml}ml` : (race?.target_hydration || '600ml');
-  const dynamicPaceStr = athletePlan?.target_pace || race?.target_pace || null;
+  // Leitura com prioridade para a tabela race_plans e fallback para races
+  const dynamicCarbs = racePlan?.target_carbs || racePlan?.carbs_per_hour || race?.target_carbs || '75g';
+  const dynamicHydration = racePlan?.target_hydration || racePlan?.fluid_per_hour_ml 
+    ? `${racePlan?.target_hydration || racePlan?.fluid_per_hour_ml}ml` 
+    : (race?.target_hydration || '600ml');
+  const dynamicPaceStr = racePlan?.target_pace || race?.target_pace || null;
   
-  // Converter o ritmo (ex: "6:30" ou 6.5) para número flutuante de minutos por km para o componente AthleteRacePlan
+  // Função para converter ritmo "6:00" em número (6.0)
   const parsePaceToNumber = (paceVal: any): number => {
-    if (!paceVal) return 6.0; // Padrão
+    if (!paceVal) return 6.0;
     if (typeof paceVal === 'number') return paceVal;
     if (typeof paceVal === 'string') {
       if (paceVal.includes(':')) {
@@ -268,7 +268,7 @@ export default function DashboardPage() {
               {dynamicPaceStr && (
                 <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
                   <p className="text-[10px] font-bold text-slate-500 uppercase">Ritmo Alvo</p>
-                  <p className="text-lg font-black text-amber-400">{dynamicPaceStr} <span className="text-[10px] font-normal text-slate-500">m/km</span></p>
+                  <p className="text-lg font-black text-amber-400">{dynamicPaceStr} <span className="text-[10px] font-normal text-slate-500">min/km</span></p>
                 </div>
               )}
             </div>
@@ -286,7 +286,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Componente Dinâmico de Postos de Abastecimento com Ritmo Real do Atleta */}
+        {/* Componente de Postos de Abastecimento (PACs) */}
         {race?.id ? (
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl">
             <AthleteRacePlan raceId={race.id} athletePaceMinPerKm={currentPaceNumeric} />
@@ -364,7 +364,7 @@ export default function DashboardPage() {
             Notas Táticas do Treinador
           </h2>
           <p className="text-sm text-slate-300 leading-relaxed">
-            {athletePlan?.coach_notes || race?.coach_notes || 'Atenção à primeira subida. Mantém o ritmo controlado e cumpre o plano de nutrição e hidratação estabelecido.'}
+            {racePlan?.coach_notes || race?.coach_notes || 'Atenção à primeira subida. Mantém o ritmo controlado e cumpre o plano de nutrição e hidratação estabelecido.'}
           </p>
         </div>
 
