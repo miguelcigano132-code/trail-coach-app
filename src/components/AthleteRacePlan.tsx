@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { Droplets, Zap, Clock, MapPin, CheckCircle2 } from 'lucide-react';
+import { Droplets, Zap, Clock, MapPin } from 'lucide-react';
 
 interface Checkpoint {
   id: string;
@@ -31,13 +31,26 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
   async function fetchCheckpoints() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // 1. Tentar procurar na tabela 'checkpoints'
+      let { data, error } = await supabase
         .from('checkpoints')
         .select('*')
         .eq('race_id', raceId)
         .order('km', { ascending: true });
 
-      if (error) throw error;
+      if (error || !data || data.length === 0) {
+        // 2. Fallback alternativo caso os dados estejam noutra tabela relacionada (ex: aid_stations)
+        const { data: altData } = await supabase
+          .from('aid_stations')
+          .select('*')
+          .eq('race_id', raceId)
+          .order('km', { ascending: true });
+        
+        if (altData) {
+          data = altData;
+        }
+      }
+
       setCheckpoints(data || []);
     } catch (err) {
       console.error('Erro ao carregar PACs:', err);
@@ -52,8 +65,9 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
 
   if (checkpoints.length === 0) {
     return (
-      <div className="bg-[#0a1122] p-4 rounded-2xl border border-slate-800 text-center text-xs text-slate-400">
-        Nenhum PAC definido para esta prova.
+      <div className="bg-[#0a1122] p-6 rounded-2xl border border-slate-800 text-center text-xs text-slate-400 space-y-2">
+        <p className="font-bold text-slate-300">Nenhum PAC definido para esta prova.</p>
+        <p className="text-[11px] text-slate-500">Se és o treinador, certifica-te de adicionar checkpoints/postos de abastecimento para esta prova no painel de administração.</p>
       </div>
     );
   }
@@ -66,7 +80,6 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
 
       <div className="grid gap-3">
         {checkpoints.map((cp, idx) => {
-          // Cálculo do segmento entre PACs
           const prevKm = idx === 0 ? 0 : checkpoints[idx - 1].km;
           const segmentDist = cp.km - prevKm;
           const estimatedMin = Math.round(segmentDist * athletePaceMinPerKm);
@@ -74,7 +87,10 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
           const mins = estimatedMin % 60;
           const timeFormatted = hours > 0 ? `${hours}h${mins}m` : `${mins}m`;
 
-          const totalMl = cp.flasks_count * cp.flask_vol_ml;
+          const flasksCount = cp.flasks_count || 1;
+          const flaskVol = cp.flask_vol_ml || 500;
+          const totalMl = flasksCount * flaskVol;
+          const carbs = cp.carbs_g || 0;
 
           return (
             <div 
@@ -87,7 +103,7 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
                   <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-black px-2 py-0.5 rounded-md">
                     KM {cp.km}
                   </span>
-                  <h4 className="font-bold text-white text-sm">{cp.name}</h4>
+                  <h4 className="font-bold text-white text-sm">{cp.name || `PAC ${idx + 1}`}</h4>
                 </div>
                 <p className="text-xs text-slate-400 flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5 text-slate-500" />
@@ -103,7 +119,7 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Hidratação</p>
                     <p className="text-xs font-mono font-bold text-cyan-300">
-                      {cp.flasks_count}x Flasks {cp.flask_vol_ml}ml ({totalMl}ml)
+                      {flasksCount}x Flasks {flaskVol}ml ({totalMl}ml)
                     </p>
                   </div>
                 </div>
@@ -114,7 +130,7 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Nutrição</p>
                     <p className="text-xs font-mono font-bold text-amber-300">
-                      {cp.carbs_g}g HC (~{Math.round(cp.carbs_g / 30)} geles)
+                      {carbs}g HC (~{Math.round(carbs / 30)} geles)
                     </p>
                   </div>
                 </div>
