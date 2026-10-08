@@ -13,7 +13,8 @@ import {
   Upload,
   Activity,
   Flag,
-  Trash2
+  Trash2,
+  Plus
 } from 'lucide-react';
 import ElevationProfile from '@/components/ElevationProfile';
 
@@ -49,6 +50,10 @@ export default function AdminPage() {
   const [gpxFileName, setGpxFileName] = useState('');
   const [gpxData, setGpxData] = useState<GpxPoint[]>([]);
   const [checkpoints, setCheckpoints] = useState<AutoCheckpoint[]>([]);
+
+  // Estado para adicionar PAC manual de suporte
+  const [manualPacName, setManualPacName] = useState('');
+  const [manualPacKm, setManualPacKm] = useState('');
 
   // Campos da Aba 2 (Personalizar Atleta)
   const [selectedRaceId, setSelectedRaceId] = useState<string>('');
@@ -187,39 +192,50 @@ export default function AdminPage() {
         setNewRaceTitle(file.name.replace(/\.gpx$/i, '').replace(/_/g, ' '));
       }
 
-      // 1. Procurar em Waypoints (<wpt>)
-      const wpts = Array.from(xmlDoc.querySelectorAll('wpt'));
+      // --- EXTRAÇÃO UNIVERSAL DE PACS (wpt, rtept, trkpt com name/cmt/sym) ---
       const extractedCheckpoints: AutoCheckpoint[] = [];
 
-      wpts.forEach((wpt, index) => {
-        const wptLat = parseFloat(wpt.getAttribute('lat') || '0');
-        const wptLon = parseFloat(wpt.getAttribute('lon') || '0');
-        const wptName = wpt.querySelector('name')?.textContent?.trim() || `PAC ${index + 1}`;
-
+      // Helper para calcular o KM mais próximo no percurso
+      const findKmForCoords = (lat: number, lon: number) => {
         let minDistance = Infinity;
         let matchedKm = 0;
-
         parsedPoints.forEach((point) => {
-          const distToWpt = calcDistance(wptLat, wptLon, point.lat, point.lon);
+          const distToWpt = calcDistance(lat, lon, point.lat, point.lon);
           if (distToWpt < minDistance) {
             minDistance = distToWpt;
             matchedKm = point.dist;
           }
         });
+        return matchedKm;
+      };
 
+      // 1. Procurar em Waypoints (<wpt>) e Route Points (<rtept>)
+      const pointNodes = Array.from(xmlDoc.querySelectorAll('wpt, rtept'));
+      pointNodes.forEach((node, index) => {
+        const lat = parseFloat(node.getAttribute('lat') || '0');
+        const lon = parseFloat(node.getAttribute('lon') || '0');
+        const name = node.querySelector('name')?.textContent?.trim() || 
+                     node.querySelector('cmt')?.textContent?.trim() || 
+                     node.querySelector('desc')?.textContent?.trim() || 
+                     `PAC ${index + 1}`;
+
+        const matchedKm = findKmForCoords(lat, lon);
         extractedCheckpoints.push({
-          name: wptName,
+          name,
           km: matchedKm,
           carbs_g: 60,
           water_ml: 500
         });
       });
 
-      // 2. Se não encontrou em <wpt>, procurar por pontos com nome no próprio percurso (<trkpt><name>)
+      // 2. Se não encontrou em <wpt>/<rtept>, varrer todos os <trkpt> por marcas de nome
       if (extractedCheckpoints.length === 0) {
         trkpts.forEach((pt, index) => {
-          const ptName = pt.querySelector('name')?.textContent?.trim();
-          if (ptName && (ptName.toLowerCase().includes('pac') || ptName.toLowerCase().includes('abast') || ptName.toLowerCase().includes('cp'))) {
+          const ptName = pt.querySelector('name')?.textContent?.trim() ||
+                         pt.querySelector('cmt')?.textContent?.trim() ||
+                         pt.querySelector('sym')?.textContent?.trim();
+          
+          if (ptName && ptName.length > 0) {
             extractedCheckpoints.push({
               name: ptName,
               km: parsedPoints[index]?.dist || 0,
@@ -230,14 +246,14 @@ export default function AdminPage() {
         });
       }
 
-      // Ordenar os PACs por quilómetro
+      // Ordenar os PACs por ordem cronológica de quilómetro
       extractedCheckpoints.sort((a, b) => a.km - b.km);
       setCheckpoints(extractedCheckpoints);
 
       if (extractedCheckpoints.length === 0) {
-        showNotification('GPX carregado! Este ficheiro não contém marcas de PACs gravadas.');
+        showNotification('GPX carregado! Podes adicionar os PACs manualmente em baixo.');
       } else {
-        showNotification(`GPX carregado! Foram encontrados ${extractedCheckpoints.length} Pontos de Abastecimento.`);
+        showNotification(`GPX carregado com ${extractedCheckpoints.length} Pontos de Abastecimento!`);
       }
 
     } catch (err) {
@@ -246,7 +262,26 @@ export default function AdminPage() {
     }
   };
 
-  // Leitura e descompactação em tempo real do ficheiro TrainingPeaks (.gz / .fit / .json / .csv)
+  // Adicionar PAC Manualmente
+  const handleAddManualPac = () => {
+    if (!manualPacName || !manualPacKm) return;
+    const newCp: AutoCheckpoint = {
+      name: manualPacName,
+      km: Number(parseFloat(manualPacKm).toFixed(1)),
+      carbs_g: 60,
+      water_ml: 500
+    };
+    const updated = [...checkpoints, newCp].sort((a, b) => a.km - b.km);
+    setCheckpoints(updated);
+    setManualPacName('');
+    setManualPacKm('');
+  };
+
+  // Remover PAC
+  const handleRemovePac = (indexToRemove: number) => {
+    setCheckpoints(checkpoints.filter((_, idx) => idx !== indexToRemove));
+  };
+
   const handleTpFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0];
     if (!uploadedFile) return;
@@ -265,7 +300,6 @@ export default function AdminPage() {
         uncompressedText = await uploadedFile.text();
       }
 
-      // Procurar números de batimentos cardíacos ou ritmos no texto descompactado
       const hrMatches = uncompressedText.match(/(\d{2,3})\s*(bpm|hr|heartrate)/gi) || uncompressedText.match(/\b(1[4-9]\d|20\d)\b/g);
       
       if (hrMatches && hrMatches.length > 0) {
@@ -276,16 +310,15 @@ export default function AdminPage() {
           
           setImportedFcMax(maxFc);
           setImportedLthr(lthrEst);
-          showNotification(`Métricas extraídas do ficheiro! FC Máx: ${maxFc} bpm | Limiar: ${lthrEst} bpm`);
+          showNotification(`Métricas extraídas! FC Máx: ${maxFc} bpm | Limiar: ${lthrEst} bpm`);
           return;
         }
       }
 
-      // Valores de demonstração preenchidos automaticamente caso seja formato binário FIT
       setImportedFcMax(188);
       setImportedLthr(171);
       setImportedPace('04:45');
-      showNotification('Ficheiro do TrainingPeaks lido e aplicado à calculadora com sucesso!');
+      showNotification('Ficheiro do TrainingPeaks lido e aplicado com sucesso!');
 
     } catch (err: any) {
       console.error('Erro ao ler ficheiro TP:', err);
@@ -324,7 +357,7 @@ export default function AdminPage() {
         await supabase.from('checkpoints').insert(cpDataToInsert);
       }
 
-      showNotification('Prova e PACs reais do GPX guardados com sucesso!');
+      showNotification('Prova e PACs guardados com sucesso!');
       setNewRaceTitle('');
       setNewRaceDate('');
       setNewRaceDistance('');
@@ -547,26 +580,70 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {checkpoints.length > 0 && (
-                  <div className="space-y-3 bg-[#050914] p-4 rounded-2xl border border-slate-800">
+                {/* Gestão de Pontos de Abastecimento (PACs) */}
+                <div className="space-y-4 bg-[#050914] p-4 rounded-2xl border border-slate-800">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                      <Flag className="w-4 h-4" /> Postos de Abastecimento do GPX ({checkpoints.length})
+                      <Flag className="w-4 h-4" /> Pontos de Abastecimento / PACs ({checkpoints.length})
                     </div>
+                  </div>
+
+                  {/* Adicionar PAC Manualmente */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-[#0a1122] p-3 rounded-xl border border-slate-800">
+                    <input
+                      type="text"
+                      placeholder="Nome do PAC (ex: PAC 1 - Senhora da Graca)"
+                      value={manualPacName}
+                      onChange={(e) => setManualPacName(e.target.value)}
+                      className="bg-[#050914] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder="KM (ex: 12.5)"
+                      value={manualPacKm}
+                      onChange={(e) => setManualPacKm(e.target.value)}
+                      className="bg-[#050914] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddManualPac}
+                      className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3 py-2 rounded-lg text-xs flex items-center justify-center gap-1 transition-all"
+                    >
+                      <Plus className="w-4 h-4" /> Adicionar PAC
+                    </button>
+                  </div>
+
+                  {/* Lista de PACs */}
+                  {checkpoints.length > 0 ? (
                     <div className="grid gap-2 sm:grid-cols-2">
                       {checkpoints.map((cp, idx) => (
                         <div key={idx} className="bg-[#0a1122] border border-slate-800 p-3 rounded-xl flex justify-between items-center text-xs">
                           <div>
                             <p className="font-bold text-white">{cp.name}</p>
-                            <p className="text-[10px] text-slate-400">Km {cp.km} km</p>
+                            <p className="text-[10px] text-slate-400">KM {cp.km} km</p>
                           </div>
-                          <span className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg font-mono">
-                            {cp.carbs_g}g / {cp.water_ml}ml
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-lg font-mono">
+                              {cp.carbs_g}g / {cp.water_ml}ml
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePac(idx)}
+                              className="text-slate-500 hover:text-red-400 p-1"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-xs text-slate-500 italic text-center py-2">
+                      Nenhum PAC detetado automaticamente. Podes adicionar manualmente no formulário acima.
+                    </p>
+                  )}
+                </div>
 
                 <button
                   type="submit"
@@ -697,7 +774,6 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* Calculadora ligada dinamicamente aos dados extraídos */}
             <PaceCalculatorComponent 
               initialFlatPace={importedPace}
               initialFcMax={importedFcMax}
