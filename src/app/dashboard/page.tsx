@@ -3,8 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
-import { User, LogOut, ShieldAlert, Utensils, Mountain, CheckCircle, Share2, MapPin, Flag, Droplet, Flame, Activity } from 'lucide-react';
+import { User, LogOut, ShieldAlert, Utensils, Mountain, CheckCircle, Share2, Activity } from 'lucide-react';
 import ElevationProfile from '@/components/ElevationProfile';
+import AthleteRacePlan from '@/components/AthleteRacePlan';
 
 type TabType = 'D-3' | 'D-2' | 'D-1' | 'RACE_DAY';
 
@@ -77,7 +78,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<TabType>('D-1');
   const [race, setRace] = useState<any>(null);
-  const [checkpoints, setCheckpoints] = useState<any[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -112,17 +112,6 @@ export default function DashboardPage() {
 
       if (raceData) {
         setRace(raceData);
-
-        // 2. Carregar os checkpoints associados ao ID da prova encontrada
-        const { data: cpData } = await supabase
-          .from('checkpoints')
-          .select('*')
-          .eq('race_id', raceData.id)
-          .order('km', { ascending: true });
-
-        if (cpData) {
-          setCheckpoints(cpData);
-        }
       }
       setLoading(false);
     }
@@ -233,7 +222,7 @@ export default function DashboardPage() {
               <div className="flex-1 md:flex-initial bg-slate-950/80 border border-slate-800 p-3 rounded-2xl text-center min-w-[90px]">
                 <p className="text-[10px] font-bold text-slate-500 uppercase">Hidratação</p>
                 <p className="text-lg font-black text-blue-400">
-                  {race?.target_hydration || '500ml (1 Flask)'}
+                  {race?.target_hydration || '600ml'}
                 </p>
               </div>
 
@@ -258,53 +247,16 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Abastecimentos (PACs) */}
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
-            <Flag className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-lg font-bold text-white">Postos de Abastecimento & Plano de Ação em Prova</h2>
+        {/* Componente Dinâmico de Postos de Abastecimento & Plano de Ação */}
+        {race?.id ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl">
+            <AthleteRacePlan raceId={race.id} athletePaceMinPerKm={6.0} />
           </div>
-
-          <div className="grid gap-4">
-            {checkpoints.length > 0 ? (
-              checkpoints.map((cp, idx) => {
-                const waterMl = cp.water_ml || 500;
-                const flasks = Math.max(1, Math.round(waterMl / 500));
-
-                return (
-                  <div key={idx} className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center font-bold text-xs text-emerald-400">
-                        {idx + 1}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-white">{cp.name}</p>
-                        <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                          <MapPin className="w-3 h-3 text-emerald-400" /> Quilómetro {typeof cp.km === 'number' ? cp.km.toFixed(1) : cp.km} km
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 text-xs">
-                      <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-emerald-400">
-                        <Flame className="w-3.5 h-3.5" />
-                        <span>Recarregar: <strong>{cp.carbs_g || 60}g Carbs</strong></span>
-                      </div>
-                      <div className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-xl text-blue-400">
-                        <Droplet className="w-3.5 h-3.5" />
-                        <span>Abastecer: <strong>{waterMl}ml</strong> ({flasks} {flasks === 1 ? 'Flask' : 'Flasks'})</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-xs text-slate-500 text-center py-4">
-                Nenhum posto de abastecimento definido pelo treinador para esta prova.
-              </p>
-            )}
+        ) : (
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center text-slate-400 text-xs italic">
+            Nenhuma prova ativa disponível para calcular os postos de abastecimento.
           </div>
-        </div>
+        )}
 
         {/* Nutrição */}
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 space-y-6">
