@@ -91,7 +91,7 @@ export default function DashboardPage() {
         }
         setUser(user);
 
-        // 1. Procurar a prova atribuída ao atleta ou a mais recente
+        // 1. Tentar procurar a prova especificamente atribuída ao atleta[cite: 8]
         let { data: raceData } = await supabase
           .from('races')
           .select('*')
@@ -100,6 +100,7 @@ export default function DashboardPage() {
           .limit(1)
           .maybeSingle();
 
+        // 2. Se não encontrar nenhuma explicitamente ligada, busca a prova mais recente criada no sistema[cite: 8]
         if (!raceData) {
           const { data: latestRace } = await supabase
             .from('races')
@@ -114,7 +115,7 @@ export default function DashboardPage() {
         if (raceData) {
           setRace(raceData);
 
-          // 2. Procurar o plano correspondente na tabela race_plans[cite: 8]
+          // 3. Procurar o plano correspondente na tabela race_plans[cite: 8]
           const { data: planData } = await supabase
             .from('race_plans')
             .select('*')
@@ -170,15 +171,13 @@ export default function DashboardPage() {
 
   const currentPlan = NUTRITION_SCHEDULE[activeTab];
 
-  // Leitura com prioridade para a tabela race_plans e fallback para races[cite: 8]
-  const dynamicCarbs = racePlan?.target_carbs || racePlan?.carbs_per_hour || race?.target_carbs || '75g';
-  const dynamicHydration = racePlan?.target_hydration || racePlan?.fluid_per_hour_ml 
-    ? `${racePlan?.target_hydration || racePlan?.fluid_per_hour_ml}ml` 
-    : (race?.target_hydration || '600ml');
-  const dynamicPaceStr = racePlan?.target_pace || race?.target_pace || null;
+  const dynamicCarbs = racePlan?.target_carbs || racePlan?.carbs_per_hour || race?.target_carbs || '75g';[cite: 8]
+  const dynamicHydration = racePlan?.target_hydration || racePlan?.fluid_per_hour_ml [cite: 8]
+    ? `${racePlan?.target_hydration || racePlan?.fluid_per_hour_ml}ml` [cite: 8]
+    : (race?.target_hydration || '600ml');[cite: 8]
+  const dynamicPaceStr = racePlan?.target_pace || race?.target_pace || null;[cite: 8]
   
-  // Função para converter ritmo "6:00" em número (6.0)[cite: 8]
-  const parsePaceToNumber = (paceVal: any): number => {
+  const parsePaceToNumber = (paceVal: any): number => {[cite: 8]
     if (!paceVal) return 6.0;
     if (typeof paceVal === 'number') return paceVal;
     if (typeof paceVal === 'string') {
