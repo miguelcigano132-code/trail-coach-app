@@ -27,10 +27,9 @@ interface GpxPoint {
   dist: number;
   distanceKm: number;
   elevation: number;
-  slope?: number; // Inclinação em percentagem (%)
+  slope?: number;
 }
 
-// Interface do PAC atualizada com suporte para Flasks
 interface AutoCheckpoint {
   id?: string;
   name: string;
@@ -45,11 +44,9 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'create' | 'customize'>('create');
   const [mode, setMode] = useState<'manual' | 'trainingpeaks'>('trainingpeaks');
   
-  // Dados do Supabase
   const [races, setRaces] = useState<any[]>([]);
   const [athletes, setAthletes] = useState<any[]>([]);
   
-  // Campos da Aba 1 (Criar Prova & GPX)
   const [newRaceTitle, setNewRaceTitle] = useState('');
   const [newRaceDate, setNewRaceDate] = useState('');
   const [newRaceDistance, setNewRaceDistance] = useState('');
@@ -58,23 +55,19 @@ export default function AdminPage() {
   const [gpxData, setGpxData] = useState<GpxPoint[]>([]);
   const [checkpoints, setCheckpoints] = useState<AutoCheckpoint[]>([]);
 
-  // Estado para adicionar PAC manual de suporte
   const [manualPacName, setManualPacName] = useState('');
   const [manualPacKm, setManualPacKm] = useState('');
 
-  // Campos da Aba 2 (Personalizar Atleta)
   const [selectedRaceId, setSelectedRaceId] = useState<string>('');
   const [selectedAthleteId, setSelectedAthleteId] = useState<string>('');
   const [selectedRaceCheckpoints, setSelectedRaceCheckpoints] = useState<AutoCheckpoint[]>([]);
   const [tpFileName, setTpFileName] = useState<string>('');
   const [coachNotes, setCoachNotes] = useState<string>('');
 
-  // Métricas extraídas do TrainingPeaks para a calculadora
   const [importedPace, setImportedPace] = useState<string>('05:00');
   const [importedFcMax, setImportedFcMax] = useState<number>(185);
   const [importedLthr, setImportedLthr] = useState<number>(168);
   
-  // Feedback
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -82,7 +75,6 @@ export default function AdminPage() {
     fetchInitialData();
   }, []);
 
-  // Efeito para carregar os PACs da prova selecionada na Aba 2
   useEffect(() => {
     async function fetchRaceCheckpoints() {
       if (!selectedRaceId) {
@@ -103,7 +95,6 @@ export default function AdminPage() {
           setSelectedRaceCheckpoints([]);
         }
 
-        // Carregar notas táticas existentes da prova
         const currentRace = races.find((r) => r.id === selectedRaceId);
         if (currentRace?.coach_notes) {
           setCoachNotes(currentRace.coach_notes);
@@ -175,8 +166,6 @@ export default function AdminPage() {
 
     try {
       const text = await file.text();
-      
-      // Utilização do parser centralizado que calcula distância, altimetria, slope e PACs
       const analysis = parseGPX(text);
 
       if (!analysis.routePoints || analysis.routePoints.length === 0) {
@@ -191,7 +180,7 @@ export default function AdminPage() {
         elevation: Math.round(pt.ele),
         dist: pt.distanceFromStart,
         distanceKm: pt.distanceFromStart,
-        slope: pt.slope // Inclinação real injetada para colorir o gráfico
+        slope: pt.slope
       }));
 
       setGpxData(formattedPoints);
@@ -225,7 +214,6 @@ export default function AdminPage() {
     }
   };
 
-  // Adicionar PAC Manualmente
   const handleAddManualPac = () => {
     if (!manualPacName || !manualPacKm) return;
     const newCp: AutoCheckpoint = {
@@ -242,7 +230,6 @@ export default function AdminPage() {
     setManualPacKm('');
   };
 
-  // Remover PAC
   const handleRemovePac = (indexToRemove: number) => {
     setCheckpoints(checkpoints.filter((_, idx) => idx !== indexToRemove));
   };
@@ -291,7 +278,6 @@ export default function AdminPage() {
     }
   };
 
-  // Guardar Prova na BD
   const handleCreateRace = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -304,7 +290,8 @@ export default function AdminPage() {
           race_date: newRaceDate,
           distance_km: Number(newRaceDistance),
           elevation_gain_m: Number(newRaceElevation),
-          gpx_data: gpxData
+          gpx_data: gpxData,
+          athlete_id: selectedAthleteId || null
         }])
         .select()
         .single();
@@ -316,12 +303,16 @@ export default function AdminPage() {
           race_id: insertedRace.id,
           name: cp.name,
           km: cp.km,
-          carbs_g: cp.carbs_g,
+          carbs_g: cp.carbs_g || 60,
           flasks_count: cp.flasks_count || 2,
           flask_vol_ml: cp.flask_vol_ml || 500
         }));
 
-        await supabase.from('checkpoints').insert(cpDataToInsert);
+        const { error: cpError } = await supabase.from('checkpoints').insert(cpDataToInsert);
+        if (cpError) {
+          console.error('Erro ao inserir PACs na base de dados:', cpError);
+          alert('A prova foi criada, mas ocorreu um erro ao guardar os PACs: ' + cpError.message);
+        }
       }
 
       showNotification('Prova e PACs guardados com sucesso!');
@@ -376,7 +367,6 @@ export default function AdminPage() {
     <div className="min-h-screen bg-[#050914] text-slate-100 p-4 md:p-8 font-sans">
       <div className="max-w-4xl mx-auto space-y-6">
         
-        {/* Cabeçalho */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-800/60">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
@@ -414,14 +404,12 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Notificação */}
         {successMessage && (
           <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4" /> {successMessage}
           </div>
         )}
 
-        {/* ABA 1: CRIAR PROVA & GPX */}
         {activeTab === 'create' && (
           <div className="space-y-6">
             {races.length > 0 && (
@@ -552,7 +540,6 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {/* Gestão de Pontos de Abastecimento (PACs) */}
                 <div className="space-y-4 bg-[#050914] p-4 rounded-2xl border border-slate-800">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 uppercase tracking-wider">
@@ -560,11 +547,10 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  {/* Adicionar PAC Manualmente */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-[#0a1122] p-3 rounded-xl border border-slate-800">
                     <input
                       type="text"
-                      placeholder="Nome do PAC (ex: PAC 1 - Senhora da Graca)"
+                      placeholder="Nome do PAC (ex: PAC 1)"
                       value={manualPacName}
                       onChange={(e) => setManualPacName(e.target.value)}
                       className="bg-[#050914] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
@@ -586,7 +572,6 @@ export default function AdminPage() {
                     </button>
                   </div>
 
-                  {/* Lista de PACs */}
                   {checkpoints.length > 0 ? (
                     <div className="grid gap-2 sm:grid-cols-2">
                       {checkpoints.map((cp, idx) => (
@@ -629,7 +614,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ABA 2: PERSONALIZAR ATLETA */}
         {activeTab === 'customize' && (
           <div className="space-y-6">
             <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
@@ -674,7 +658,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Lista Resumo dos PACs Encontrados para esta Prova */}
               <div className="bg-[#050914] p-4 rounded-2xl border border-slate-800/80 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
@@ -699,7 +682,7 @@ export default function AdminPage() {
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500 italic text-center py-2">
-                    Nenhum PAC definido para esta prova.
+                    Nenhum PAC definido para esta prova. Certifica-te de criar a prova com um ficheiro GPX válido na Aba 1.
                   </p>
                 )}
               </div>
@@ -776,7 +759,6 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* VISTA DO PLANO DE PACs E NUTRIÇÃO DO ATLETA */}
             {selectedRaceId && (
               <div className="bg-[#0a1122]/90 border border-slate-800/80 rounded-3xl p-6 md:p-8 shadow-2xl">
                 <AthleteRacePlan raceId={selectedRaceId} athletePaceMinPerKm={6.0} />
