@@ -2,12 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { Droplets, Zap, Clock, MapPin } from 'lucide-react';
+import { Droplets, Zap, Clock, MapPin, Mountain } from 'lucide-react';
 
 interface Checkpoint {
   id: string;
   name: string;
   km: number;
+  elevation_gain?: number; // Desnível acumulado opcional no segmento
   carbs_g: number;
   flasks_count: number;
   flask_vol_ml: number;
@@ -15,7 +16,7 @@ interface Checkpoint {
 
 interface RacePlanProps {
   raceId: string;
-  athletePaceMinPerKm?: number; // Ex: 6.5 para 6m30s/km
+  athletePaceMinPerKm?: number; // Ritmo base em plano (ex: 6.0 min/km)
 }
 
 export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: RacePlanProps) {
@@ -31,7 +32,6 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
   async function fetchCheckpoints() {
     setLoading(true);
     try {
-      // 1. Tentar procurar na tabela 'checkpoints'
       let { data, error } = await supabase
         .from('checkpoints')
         .select('*')
@@ -39,7 +39,6 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
         .order('km', { ascending: true });
 
       if (error || !data || data.length === 0) {
-        // 2. Fallback alternativo caso os dados estejam noutra tabela relacionada (ex: aid_stations)
         const { data: altData } = await supabase
           .from('aid_stations')
           .select('*')
@@ -67,7 +66,7 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
     return (
       <div className="bg-[#0a1122] p-6 rounded-2xl border border-slate-800 text-center text-xs text-slate-400 space-y-2">
         <p className="font-bold text-slate-300">Nenhum PAC definido para esta prova.</p>
-        <p className="text-[11px] text-slate-500">Se és o treinador, certifica-te de adicionar checkpoints/postos de abastecimento para esta prova no painel de administração.</p>
+        <p className="text-[11px] text-slate-500">Certifica-te de adicionar checkpoints/postos de abastecimento para esta prova no painel de administração.</p>
       </div>
     );
   }
@@ -75,14 +74,22 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
-        <MapPin className="w-4 h-4" /> Plano Nutricional & Hidratação por PAC
+        <MapPin className="w-4 h-4" /> Plano Nutricional & Estimativa de Esforço por PAC
       </h3>
 
       <div className="grid gap-3">
         {checkpoints.map((cp, idx) => {
           const prevKm = idx === 0 ? 0 : checkpoints[idx - 1].km;
           const segmentDist = cp.km - prevKm;
-          const estimatedMin = Math.round(segmentDist * athletePaceMinPerKm);
+          
+          // --- Ajuste Naismith para o Segmento ---
+          // Tempo base em minutos = distância * ritmo (min/km)
+          const baseMinutes = segmentDist * athletePaceMinPerKm;
+          // Penalização de subida estimada (se houver ganho de elevação registado, senão assume estimativa proporcional, ex: 10m por km)
+          const segGain = cp.elevation_gain || (segmentDist * 30); 
+          const climbPenaltyMinutes = (segGain / 600) * 60; // +60 min por cada 600m de subida
+          
+          const estimatedMin = Math.round(baseMinutes + climbPenaltyMinutes);
           const hours = Math.floor(estimatedMin / 60);
           const mins = estimatedMin % 60;
           const timeFormatted = hours > 0 ? `${hours}h${mins}m` : `${mins}m`;
@@ -105,15 +112,22 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
                   </span>
                   <h4 className="font-bold text-white text-sm">{cp.name || `PAC ${idx + 1}`}</h4>
                 </div>
-                <p className="text-xs text-slate-400 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-slate-500" />
-                  Segmento: {segmentDist.toFixed(1)} km (~{timeFormatted})
-                </p>
+                <div className="flex items-center gap-3 text-xs text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    Segmento: {segmentDist.toFixed(1)} km (~{timeFormatted})
+                  </span>
+                  {segGain > 0 && (
+                    <span className="flex items-center gap-1 text-amber-400/90 font-medium">
+                      <Mountain className="w-3.5 h-3.5" />
+                      +{Math.round(segGain)}m D+
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Métricas de Nutrição e Hidratação */}
               <div className="flex flex-wrap items-center gap-3">
-                {/* Flasks / Água */}
                 <div className="bg-[#050914] border border-slate-800 px-3 py-2 rounded-xl flex items-center gap-2">
                   <Droplets className="w-4 h-4 text-cyan-400" />
                   <div>
@@ -124,7 +138,6 @@ export default function AthleteRacePlan({ raceId, athletePaceMinPerKm = 6.0 }: R
                   </div>
                 </div>
 
-                {/* Hidratos de Carbono */}
                 <div className="bg-[#050914] border border-slate-800 px-3 py-2 rounded-xl flex items-center gap-2">
                   <Zap className="w-4 h-4 text-amber-400" />
                   <div>
