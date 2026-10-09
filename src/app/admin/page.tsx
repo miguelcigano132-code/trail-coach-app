@@ -3,6 +3,7 @@
 import PaceCalculatorComponent from '@/components/PaceCalculatorComponent';
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { parseGPX } from '@/lib/gpxParser';
 import { 
   FileUp, 
   SlidersHorizontal, 
@@ -26,6 +27,7 @@ interface GpxPoint {
   dist: number;
   distanceKm: number;
   elevation: number;
+  slope?: number; // Inclinação em percentagem (%)
 }
 
 // Interface do PAC atualizada com suporte para Flasks
@@ -165,20 +167,6 @@ export default function AdminPage() {
     }
   };
 
-  const calcDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
   const handleGpxUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -187,136 +175,48 @@ export default function AdminPage() {
 
     try {
       const text = await file.text();
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(text, 'text/xml');
-      const trkpts = Array.from(xmlDoc.querySelectorAll('trkpt'));
+      
+      // Utilização do parser centralizado que calcula distância, altimetria, slope e PACs
+      const analysis = parseGPX(text);
 
-      if (trkpts.length === 0) {
+      if (!analysis.routePoints || analysis.routePoints.length === 0) {
         alert('Ficheiro GPX inválido ou sem pontos de trajeto.');
         return;
       }
 
-      let totalDist = 0;
-      let totalElevationGain = 0;
-      const parsedPoints: GpxPoint[] = [];
+      const formattedPoints: GpxPoint[] = analysis.routePoints.map((pt) => ({
+        lat: pt.lat,
+        lon: pt.lon,
+        ele: Math.round(pt.ele),
+        elevation: Math.round(pt.ele),
+        dist: pt.distanceFromStart,
+        distanceKm: pt.distanceFromStart,
+        slope: pt.slope // Inclinação real injetada para colorir o gráfico
+      }));
 
-      trkpts.forEach((pt, index) => {
-        const lat = parseFloat(pt.getAttribute('lat') || '0');
-        const lon = parseFloat(pt.getAttribute('lon') || '0');
-        const eleNode = pt.querySelector('ele');
-        const ele = eleNode ? parseFloat(eleNode.textContent || '0') : 0;
-
-        if (index > 0) {
-          const prev = parsedPoints[index - 1];
-          const distIncrement = calcDistance(prev.lat, prev.lon, lat, lon);
-          totalDist += distIncrement;
-
-          const eleDiff = ele - prev.ele;
-          if (eleDiff > 0) totalElevationGain += eleDiff;
-        }
-
-        const currentDist = Number(totalDist.toFixed(2));
-        const currentEle = Math.round(ele);
-
-        parsedPoints.push({
-          lat,
-          lon,
-          ele: currentEle,
-          elevation: currentEle,
-          dist: currentDist,
-          distanceKm: currentDist
-        });
-      });
-
-      setGpxData(parsedPoints);
-      setNewRaceDistance(Number(totalDist.toFixed(1)).toString());
-      setNewRaceElevation(Math.round(totalElevationGain).toString());
+      setGpxData(formattedPoints);
+      setNewRaceDistance(analysis.totalDistance.toString());
+      setNewRaceElevation(analysis.elevationGain.toString());
 
       if (!newRaceTitle) {
         setNewRaceTitle(file.name.replace(/\.gpx$/i, '').replace(/_/g, ' '));
       }
 
-      // --- EXTRAÇÃO REFINADA DE PACS ---
-      const extractedCheckpoints: AutoCheckpoint[] = [];
-      const pacKeywords = ['pac', 'abast', 'cp', 'alimenta', 'hidrata', 'agua', 'água', 'za', 'ponto', 'checkpoint', 'refresco'];
+      const extractedCheckpoints: AutoCheckpoint[] = analysis.extractedPACs.map(pac => ({
+        name: pac.name,
+        km: pac.km,
+        carbs_g: pac.carbs_g,
+        flasks_count: 2,
+        flask_vol_ml: 500,
+        water_ml: 1000
+      }));
 
-      const findKmForCoords = (lat: number, lon: number) => {
-        let minDistance = Infinity;
-        let matchedKm = 0;
-        parsedPoints.forEach((point) => {
-          const distToWpt = calcDistance(lat, lon, point.lat, point.lon);
-          if (distToWpt < minDistance) {
-            minDistance = distToWpt;
-            matchedKm = point.dist;
-          }
-        });
-        return matchedKm;
-      };
+      setCheckpoints(extractedCheckpoints);
 
-      // 1. Procurar em Waypoints (<wpt> e <rtept>)
-      const pointNodes = Array.from(xmlDoc.querySelectorAll('wpt, rtept'));
-      pointNodes.forEach((node, index) => {
-        const lat = parseFloat(node.getAttribute('lat') || '0');
-        const lon = parseFloat(node.getAttribute('lon') || '0');
-        const name = node.querySelector('name')?.textContent?.trim() || 
-                     node.querySelector('cmt')?.textContent?.trim() || 
-                     node.querySelector('desc')?.textContent?.trim() || '';
-
-        const matchedKm = findKmForCoords(lat, lon);
-        const displayName = name || `PAC ${index + 1}`;
-
-        extractedCheckpoints.push({
-          name: displayName,
-          km: matchedKm,
-          carbs_g: 60,
-          flasks_count: 2,
-          flask_vol_ml: 500,
-          water_ml: 1000
-        });
-      });
-
-      // 2. Procurar em <trkpt>
       if (extractedCheckpoints.length === 0) {
-        trkpts.forEach((pt, index) => {
-          const ptName = pt.querySelector('name')?.textContent?.trim() ||
-                         pt.querySelector('cmt')?.textContent?.trim() ||
-                         pt.querySelector('sym')?.textContent?.trim() || '';
-
-          if (ptName) {
-            const lowerName = ptName.toLowerCase();
-            const isPac = pacKeywords.some((keyword) => lowerName.includes(keyword));
-
-            if (isPac) {
-              extractedCheckpoints.push({
-                name: ptName,
-                km: parsedPoints[index]?.dist || 0,
-                carbs_g: 60,
-                flasks_count: 2,
-                flask_vol_ml: 500,
-                water_ml: 1000
-              });
-            }
-          }
-        });
-      }
-
-      // 3. Ordenar por KM e eliminar duplicados
-      extractedCheckpoints.sort((a, b) => a.km - b.km);
-
-      const filteredCheckpoints: AutoCheckpoint[] = [];
-      extractedCheckpoints.forEach((cp) => {
-        const existsClose = filteredCheckpoints.some((existing) => Math.abs(existing.km - cp.km) < 1.0);
-        if (!existsClose) {
-          filteredCheckpoints.push(cp);
-        }
-      });
-
-      setCheckpoints(filteredCheckpoints);
-
-      if (filteredCheckpoints.length === 0) {
         showNotification('GPX carregado! Não foram detetados PACs automáticos (podes adicionar manualmente).');
       } else {
-        showNotification(`GPX carregado! Foram identificados ${filteredCheckpoints.length} Pontos de Abastecimento.`);
+        showNotification(`GPX carregado! Foram identificados ${extractedCheckpoints.length} Pontos de Abastecimento.`);
       }
 
     } catch (err) {
