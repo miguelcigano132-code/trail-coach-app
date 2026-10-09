@@ -91,7 +91,6 @@ export default function DashboardPage() {
         }
         setUser(user);
 
-        // 1. Tentar procurar a prova especificamente atribuída ao atleta
         let { data: raceData } = await supabase
           .from('races')
           .select('*')
@@ -100,7 +99,6 @@ export default function DashboardPage() {
           .limit(1)
           .maybeSingle();
 
-        // 2. Se não encontrar nenhuma explicitamente ligada, busca a prova mais recente criada[cite: 8, 15]
         if (!raceData) {
           const { data: latestRace } = await supabase
             .from('races')
@@ -115,7 +113,6 @@ export default function DashboardPage() {
         if (raceData) {
           setRace(raceData);
 
-          // 3. Procurar o plano correspondente na tabela race_plans[cite: 8, 15]
           const { data: planData } = await supabase
             .from('race_plans')
             .select('*')
@@ -171,16 +168,15 @@ export default function DashboardPage() {
 
   const currentPlan = NUTRITION_SCHEDULE[activeTab];
 
-  const dynamicCarbs = racePlan?.target_carbs || racePlan?.carbs_per_hour || race?.target_carbs || '75g';[cite: 8, 15]
-  const hydrationValue = racePlan?.target_hydration || racePlan?.fluid_per_hour_ml || race?.target_hydration;[cite: 8, 15]
-  const dynamicHydration = hydrationValue ? `${hydrationValue}ml` : '600ml';[cite: 8, 15]
-  const dynamicPaceStr = racePlan?.target_pace || race?.target_pace || null;[cite: 8, 15]
+  const dynamicCarbs = racePlan?.target_carbs || racePlan?.carbs_per_hour || race?.target_carbs || '75g';
+  const hydrationValue = racePlan?.target_hydration || racePlan?.fluid_per_hour_ml || race?.target_hydration;
+  const dynamicHydration = hydrationValue ? `${hydrationValue}ml` : '600ml';
+  const dynamicPaceStr = racePlan?.target_pace || race?.target_pace || null;
   
-  // Se for o dia da prova, usa os valores dinâmicos personalizados da BD, caso contrário usa o plano padrão
   const activeTargetCarbs = activeTab === 'RACE_DAY' ? dynamicCarbs : currentPlan.targetCarbs;
   const activeWater = activeTab === 'RACE_DAY' ? dynamicHydration : currentPlan.water;
 
-  const parsePaceToNumber = (paceVal: any): number => {[cite: 8, 15]
+  const parsePaceToNumber = (paceVal: any): number => {
     if (!paceVal) return 6.0;
     if (typeof paceVal === 'number') return paceVal;
     if (typeof paceVal === 'string') {
