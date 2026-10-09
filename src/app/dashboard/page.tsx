@@ -91,7 +91,7 @@ export default function DashboardPage() {
         }
         setUser(user);
 
-        // 1. Tentar procurar a prova especificamente atribuída ao atleta[cite: 8]
+        // 1. Tentar procurar a prova especificamente atribuída ao atleta
         let { data: raceData } = await supabase
           .from('races')
           .select('*')
@@ -100,7 +100,7 @@ export default function DashboardPage() {
           .limit(1)
           .maybeSingle();
 
-        // 2. Se não encontrar nenhuma explicitamente ligada, busca a prova mais recente criada no sistema[cite: 8]
+        // 2. Se não encontrar nenhuma explicitamente ligada, busca a prova mais recente criada no sistema
         if (!raceData) {
           const { data: latestRace } = await supabase
             .from('races')
@@ -115,7 +115,7 @@ export default function DashboardPage() {
         if (raceData) {
           setRace(raceData);
 
-          // 3. Procurar o plano correspondente na tabela race_plans[cite: 8]
+          // 3. Procurar o plano correspondente na tabela race_plans
           const { data: planData } = await supabase
             .from('race_plans')
             .select('*')
@@ -171,13 +171,12 @@ export default function DashboardPage() {
 
   const currentPlan = NUTRITION_SCHEDULE[activeTab];
 
-  const dynamicCarbs = racePlan?.target_carbs || racePlan?.carbs_per_hour || race?.target_carbs || '75g';[cite: 8]
-  const dynamicHydration = racePlan?.target_hydration || racePlan?.fluid_per_hour_ml [cite: 8]
-    ? `${racePlan?.target_hydration || racePlan?.fluid_per_hour_ml}ml` [cite: 8]
-    : (race?.target_hydration || '600ml');[cite: 8]
-  const dynamicPaceStr = racePlan?.target_pace || race?.target_pace || null;[cite: 8]
+  const dynamicCarbs = racePlan?.target_carbs || racePlan?.carbs_per_hour || race?.target_carbs || '75g';
+  const hydrationValue = racePlan?.target_hydration || racePlan?.fluid_per_hour_ml || race?.target_hydration;
+  const dynamicHydration = hydrationValue ? `${hydrationValue}ml` : '600ml';
+  const dynamicPaceStr = racePlan?.target_pace || race?.target_pace || null;
   
-  const parsePaceToNumber = (paceVal: any): number => {[cite: 8]
+  const parsePaceToNumber = (paceVal: any): number => {
     if (!paceVal) return 6.0;
     if (typeof paceVal === 'number') return paceVal;
     if (typeof paceVal === 'string') {
