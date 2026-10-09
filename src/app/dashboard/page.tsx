@@ -114,7 +114,7 @@ export default function DashboardPage() {
         if (raceData) {
           setRace(raceData);
 
-          // 2. Procurar o plano correspondente na tabela race_plans
+          // 2. Procurar o plano correspondente na tabela race_plans[cite: 8]
           const { data: planData } = await supabase
             .from('race_plans')
             .select('*')
@@ -170,14 +170,14 @@ export default function DashboardPage() {
 
   const currentPlan = NUTRITION_SCHEDULE[activeTab];
 
-  // Leitura com prioridade para a tabela race_plans e fallback para races
+  // Leitura com prioridade para a tabela race_plans e fallback para races[cite: 8]
   const dynamicCarbs = racePlan?.target_carbs || racePlan?.carbs_per_hour || race?.target_carbs || '75g';
   const dynamicHydration = racePlan?.target_hydration || racePlan?.fluid_per_hour_ml 
     ? `${racePlan?.target_hydration || racePlan?.fluid_per_hour_ml}ml` 
     : (race?.target_hydration || '600ml');
   const dynamicPaceStr = racePlan?.target_pace || race?.target_pace || null;
   
-  // Função para converter ritmo "6:00" em número (6.0)
+  // Função para converter ritmo "6:00" em número (6.0)[cite: 8]
   const parsePaceToNumber = (paceVal: any): number => {
     if (!paceVal) return 6.0;
     if (typeof paceVal === 'number') return paceVal;
