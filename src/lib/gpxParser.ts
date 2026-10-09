@@ -39,17 +39,55 @@ function calculateKmForWaypoint(wptLat: number, wptLon: number, routePoints: any
   return closestKm;
 }
 
-export function parseGPX(xmlText: string) {
+export function parseGPX(xmlText: string, baseSpeedKmH: number = 8) {
   const parser = new DOMParser();
   const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
 
   // 1. Extrai os pontos de elevação/percurso (<trkpt>)
   const trkpts = Array.from(xmlDoc.querySelectorAll('trkpt'));
-  const routePoints = trkpts.map((pt) => ({
-    lat: parseFloat(pt.getAttribute('lat') || '0'),
-    lon: parseFloat(pt.getAttribute('lon') || '0'),
-    ele: parseFloat(pt.querySelector('ele')?.textContent || '0'),
-  }));
+  
+  let totalDistance = 0;
+  let elevationGain = 0;
+  let elevationLoss = 0;
+
+  const routePoints = trkpts.map((pt, i) => {
+    const lat = parseFloat(pt.getAttribute('lat') || '0');
+    const lon = parseFloat(pt.getAttribute('lon') || '0');
+    const ele = parseFloat(pt.querySelector('ele')?.textContent || '0');
+
+    let segmentDistance = 0;
+    let slope = 0;
+
+    if (i > 0) {
+      const prevLat = parseFloat(trkpts[i - 1].getAttribute('lat') || '0');
+      const prevLon = parseFloat(trkpts[i - 1].getAttribute('lon') || '0');
+      const prevEle = parseFloat(trkpts[i - 1].querySelector('ele')?.textContent || '0');
+
+      segmentDistance = getHaversineDistance(prevLat, prevLon, lat, lon);
+      totalDistance += segmentDistance;
+
+      const eleDiff = ele - prevEle;
+      if (eleDiff > 0) {
+        elevationGain += eleDiff;
+      } else {
+        elevationLoss += Math.abs(eleDiff);
+      }
+
+      // Cálculo da inclinação em percentagem (%)
+      const distanceMeters = segmentDistance * 1000;
+      if (distanceMeters > 0) {
+        slope = (eleDiff / distanceMeters) * 100;
+      }
+    }
+
+    return {
+      lat,
+      lon,
+      ele,
+      distanceFromStart: parseFloat(totalDistance.toFixed(3)),
+      slope: parseFloat(slope.toFixed(2)),
+    };
+  });
 
   // 2. Extrai os Postos de Abastecimento (<wpt>)
   const wpts = Array.from(xmlDoc.querySelectorAll('wpt'));
@@ -68,5 +106,17 @@ export function parseGPX(xmlText: string) {
     };
   });
 
-  return { routePoints, extractedPACs };
+  // 3. Regra de Naismith Modificada para Trail Running
+  const baseTimeHours = totalDistance / Math.max(baseSpeedKmH, 1);
+  const climbHours = elevationGain / 600; // +1 hora por cada 600m de subida
+  const estimatedTimeMinutes = Math.round((baseTimeHours + climbHours) * 60);
+
+  return { 
+    routePoints, 
+    extractedPACs, 
+    totalDistance: parseFloat(totalDistance.toFixed(2)),
+    elevationGain: Math.round(elevationGain),
+    elevationLoss: Math.round(elevationLoss),
+    estimatedTimeMinutes 
+  };
 }
