@@ -62,13 +62,13 @@ const NUTRITION_SCHEDULE: Record<TabType, NutritionPlan> = {
   'RACE_DAY': {
     title: 'Estratégia do Dia da Prova',
     targetCarbs: '75g / hora',
-    water: '500 ml / hora (1 Flask)',
+    water: '500 ml / hora',
     focus: 'Pequeno-almoço 3h antes da partida. Ingerir gel/sólido a cada 30-40 minutos.',
     meals: [
       { time: 'Pré-Prova (-3h)', desc: 'Pão branco com marmelada + Banana madura + Café' },
       { time: 'Pré-Partida (-15m)', desc: '1 Gel de pré-partida + 200ml de água' },
-      { time: 'Em Prova', desc: 'Alternar entre géis de 30g de carbs e barras moles nos PACs' },
-      { time: 'Pós-Prova', desc: 'Batido de proteína + hidratos nas primeiras 30 min' }
+      { time: 'Em Prova', desc: 'Alternar entre géis de hidratos e barras moles nos PACs' },
+      { time: 'Pós-Prova', desc: 'Batido de recuperação + hidratos nas primeiras 30 min' }
     ]
   }
 };
@@ -100,7 +100,7 @@ export default function DashboardPage() {
           .limit(1)
           .maybeSingle();
 
-        // 2. Se não encontrar nenhuma explicitamente ligada, busca a prova mais recente criada no sistema
+        // 2. Se não encontrar nenhuma explicitamente ligada, busca a prova mais recente criada[cite: 8, 15]
         if (!raceData) {
           const { data: latestRace } = await supabase
             .from('races')
@@ -115,7 +115,7 @@ export default function DashboardPage() {
         if (raceData) {
           setRace(raceData);
 
-          // 3. Procurar o plano correspondente na tabela race_plans
+          // 3. Procurar o plano correspondente na tabela race_plans[cite: 8, 15]
           const { data: planData } = await supabase
             .from('race_plans')
             .select('*')
@@ -171,12 +171,16 @@ export default function DashboardPage() {
 
   const currentPlan = NUTRITION_SCHEDULE[activeTab];
 
-  const dynamicCarbs = racePlan?.target_carbs || racePlan?.carbs_per_hour || race?.target_carbs || '75g';
-  const hydrationValue = racePlan?.target_hydration || racePlan?.fluid_per_hour_ml || race?.target_hydration;
-  const dynamicHydration = hydrationValue ? `${hydrationValue}ml` : '600ml';
-  const dynamicPaceStr = racePlan?.target_pace || race?.target_pace || null;
+  const dynamicCarbs = racePlan?.target_carbs || racePlan?.carbs_per_hour || race?.target_carbs || '75g';[cite: 8, 15]
+  const hydrationValue = racePlan?.target_hydration || racePlan?.fluid_per_hour_ml || race?.target_hydration;[cite: 8, 15]
+  const dynamicHydration = hydrationValue ? `${hydrationValue}ml` : '600ml';[cite: 8, 15]
+  const dynamicPaceStr = racePlan?.target_pace || race?.target_pace || null;[cite: 8, 15]
   
-  const parsePaceToNumber = (paceVal: any): number => {
+  // Se for o dia da prova, usa os valores dinâmicos personalizados da BD, caso contrário usa o plano padrão
+  const activeTargetCarbs = activeTab === 'RACE_DAY' ? dynamicCarbs : currentPlan.targetCarbs;
+  const activeWater = activeTab === 'RACE_DAY' ? dynamicHydration : currentPlan.water;
+
+  const parsePaceToNumber = (paceVal: any): number => {[cite: 8, 15]
     if (!paceVal) return 6.0;
     if (typeof paceVal === 'number') return paceVal;
     if (typeof paceVal === 'string') {
@@ -300,7 +304,7 @@ export default function DashboardPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div className="flex items-center gap-2">
               <Utensils className="w-5 h-5 text-emerald-400" />
-              <h2 className="text-lg font-bold text-white">Plano de Nutrição Pré-Prova</h2>
+              <h2 className="text-lg font-bold text-white">Plano de Nutrição & Hidratação</h2>
             </div>
 
             <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
@@ -327,11 +331,11 @@ export default function DashboardPage() {
             </div>
             <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
               <span className="text-[10px] font-bold uppercase text-slate-500">Alvo de Hidratos</span>
-              <p className="text-sm font-extrabold text-emerald-400 mt-0.5">{currentPlan.targetCarbs}</p>
+              <p className="text-sm font-extrabold text-emerald-400 mt-0.5">{activeTargetCarbs}</p>
             </div>
             <div className="bg-slate-950/60 border border-slate-800/80 p-4 rounded-2xl">
               <span className="text-[10px] font-bold uppercase text-slate-500">Líquidos</span>
-              <p className="text-sm font-extrabold text-blue-400 mt-0.5">{currentPlan.water}</p>
+              <p className="text-sm font-extrabold text-blue-400 mt-0.5">{activeWater}</p>
             </div>
           </div>
 
