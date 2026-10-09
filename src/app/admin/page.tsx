@@ -194,7 +194,7 @@ export default function AdminPage() {
       const extractedCheckpoints: AutoCheckpoint[] = analysis.extractedPACs.map(pac => ({
         name: pac.name,
         km: pac.km,
-        carbs_g: pac.carbs_g,
+        carbs_g: 60,
         flasks_count: 2,
         flask_vol_ml: 500,
         water_ml: 1000
@@ -299,13 +299,11 @@ export default function AdminPage() {
       if (raceError) throw raceError;
 
       if (checkpoints.length > 0 && insertedRace) {
+        // Inserção segura apenas com as colunas essenciais para evitar erros de esquema
         const cpDataToInsert = checkpoints.map(cp => ({
           race_id: insertedRace.id,
           name: cp.name,
-          km: cp.km,
-          carbs_g: cp.carbs_g || 60,
-          flasks_count: cp.flasks_count || 2,
-          flask_vol_ml: cp.flask_vol_ml || 500
+          km: cp.km
         }));
 
         const { error: cpError } = await supabase.from('checkpoints').insert(cpDataToInsert);
@@ -675,7 +673,7 @@ export default function AdminPage() {
                           <p className="text-[10px] text-slate-400">KM {pac.km} km</p>
                         </div>
                         <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20 font-mono">
-                          {pac.carbs_g}g | {pac.flasks_count || 2}x{pac.flask_vol_ml || 500}ml
+                          {pac.carbs_g || 60}g | {pac.flasks_count || 2}x{pac.flask_vol_ml || 500}ml
                         </span>
                       </div>
                     ))}
